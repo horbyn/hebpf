@@ -18,6 +18,7 @@ add_compile_options(
 )
 
 # 安装外部依赖
+set(HEBPF_DEPS_DIR ${CMAKE_SOURCE_DIR}/deps)
 # - git submodule：当需要独立进行版本控制时
 # - ExternalProject：不需要控制版本，但需要预编译，且不需要跳入源码
 # - FetchContent：不需要控制版本，不需要预编译，但希望能够跳入源码
@@ -26,6 +27,9 @@ FetchContent_Declare(
   spdlog
   GIT_REPOSITORY https://github.com/gabime/spdlog.git
   GIT_TAG v1.15.1
+  SOURCE_DIR     "${HEBPF_DEPS_DIR}/spdlog_src"
+  BINARY_DIR     "${HEBPF_DEPS_DIR}/spdlog_build"
+  SUBBUILD_DIR   "${HEBPF_DEPS_DIR}/spdlog_subbuild"
 )
 set(SPDLOG_INSTALL OFF CACHE BOOL "" FORCE) # 不要安装到系统目录
 FetchContent_MakeAvailable(spdlog)
@@ -35,7 +39,12 @@ FetchContent_MakeAvailable(spdlog)
 # 查找第三方库
 
 # 编译
+include_directories(${spdlog_SOURCE_DIR}/include)
+add_subdirectory(src)
 
 # 可执行文件
-add_executable(hebpf main.cc)
-target_link_libraries(hebpf PRIVATE spdlog::spdlog_header_only)
+add_executable(hebpf hebpf.cc)
+target_link_libraries(hebpf
+  PRIVATE
+  hebpf_log
+)
