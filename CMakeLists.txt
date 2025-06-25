@@ -33,18 +33,89 @@ FetchContent_Declare(
 )
 set(SPDLOG_INSTALL OFF CACHE BOOL "" FORCE) # 不要安装到系统目录
 FetchContent_MakeAvailable(spdlog)
+message(STATUS "spdlog 头文件目录: ${spdlog_SOURCE_DIR}/include")
+
+FetchContent_Declare(
+  cli11
+  GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
+  GIT_TAG v2.5.0
+  SOURCE_DIR     "${HEBPF_DEPS_DIR}/cli11_src"
+  BINARY_DIR     "${HEBPF_DEPS_DIR}/cli11_build"
+  SUBBUILD_DIR   "${HEBPF_DEPS_DIR}/cli11_subbuild"
+)
+FetchContent_MakeAvailable(cli11)
+message(STATUS "cli11 头文件目录: ${cli11_SOURCE_DIR}/include")
+
+# 静态检查
+option(HEBPF_STATIC_ANALYSIS "Enable static analysis" OFF)
+if(HEBPF_STATIC_ANALYSIS)
+  message(STATUS "[静态检查]: ON")
+  option(CMAKE_EXPORT_COMPILE_COMMANDS "Export compile_commands.json" ON)
+  if (NOT CMAKE_EXPORT_COMPILE_COMMANDS)
+    message(FATAL_ERROR "需要设置 CMAKE_EXPORT_COMPILE_COMMANDS 以导出"
+                        " compile_commands.json")
+  endif()
+
+  find_program(CLANG_TIDY_EXE "clang-tidy")
+  if(NOT CLANG_TIDY_EXE)
+    message(FATAL_ERROR "找不到 clang-tidy 工具")
+  endif()
+
+  file(GLOB_RECURSE ALL_SROUCES
+    "${CMAKE_SOURCE_DIR}/hebpf.cc"
+    "${CMAKE_SOURCE_DIR}/src/*.h"
+    "${CMAKE_SOURCE_DIR}/src/*.tpp"
+    "${CMAKE_SOURCE_DIR}/src/*.cc"
+  )
+
+  add_custom_target(static_analysis
+    COMMAND ${CLANG_TIDY_EXE}
+      -p ${CMAKE_BINARY_DIR}/compile_commands.json
+      --config-file=${CMAKE_SOURCE_DIR}/.clang-tidy
+      ${ALL_SROUCES}
+    COMMENT "对项目进行静态检查"
+  )
+endif()
 
 # 设置全局变量
 
 # 查找第三方库
 
 # 编译
-include_directories(${spdlog_SOURCE_DIR}/include)
+include_directories(
+  ${CMAKE_SOURCE_DIR}
+  ${spdlog_SOURCE_DIR}/include
+  ${cli11_SOURCE_DIR}/include
+)
 add_subdirectory(src)
 
 # 可执行文件
-add_executable(hebpf hebpf.cc)
-target_link_libraries(hebpf
+add_executable(${PROJECT_NAME} hebpf.cc)
+target_link_libraries(${PROJECT_NAME}
   PRIVATE
   hebpf_log
+  hebpf_cmdline
 )
+
+# 内存检查
+option(HEBPF_MEMCHECK "Enable memory check" OFF)
+if(HEBPF_MEMCHECK)
+  message(STATUS "[内存检查]: ON")
+
+  find_program(VALGRIND_EXE "valgrind")
+  if (NOT VALGRIND_EXE)
+    message(FATAL_ERROR "找不到 valgrind 工具")
+  endif()
+
+  add_custom_target(memcheck
+    COMMAND ${VALGRIND_EXE}
+      --leak-check=full
+      --track-origins=yes
+      --leak-check=full
+      --show-leak-kinds=all
+      ${CMAKE_BINARY_DIR}/${PROJECT_NAME}
+        --help
+    COMMENT "对项目进行内存检查"
+  )
+  add_dependencies(memcheck ${PROJECT_NAME})
+endif()
