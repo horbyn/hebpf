@@ -12,11 +12,38 @@ static std::unordered_map<std::string, std::shared_ptr<log::LoggerType>> g_map{}
 static Level g_level{LOGLEVEL_DEFAULT};
 static std::string g_logfile{LOGFILE_DEFAULT};
 
-auto LogConfig::setLevel(Level level) -> void { g_level = level_ = level; }
+/**
+ * @brief 设置日志等级
+ *
+ * @param level 日志等级
+ */
+auto LogConfig::setLevel(Level level) -> void {
+  level_ = level;
+  {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    g_level = level;
+  }
+}
 
+/**
+ * @brief 获取日志等级
+ *
+ * @return Level 日志等级
+ */
 auto LogConfig::getLevel() const noexcept -> Level { return level_; }
 
-auto LogConfig::setLogFile(const std::string &file) -> void { g_logfile = file_ = file; }
+/**
+ * @brief 设置日志文件路径
+ *
+ * @param file 日志文件路径
+ */
+auto LogConfig::setLogFile(const std::string &file) -> void {
+  file_ = file;
+  {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    g_logfile = file;
+  }
+}
 
 /**
  * @brief 获取全局的日志对象
@@ -43,6 +70,20 @@ auto Logger::getLogger(const std::string &log_name) -> std::shared_ptr<log::Logg
     g_map[log_name2] = temp;
   }
   return g_map[log_name2];
+}
+
+/**
+ * @brief 获取日志等级
+ *
+ * @return Level 日志等级
+ */
+auto Logger::getLevel() -> Level {
+  Level ret{};
+  {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    ret = g_level;
+  }
+  return ret;
 }
 
 } // namespace log
