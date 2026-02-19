@@ -1,0 +1,3 @@
+#pragma once
+
+#define HEBPF_VERSION R"(@PROJECT_VERSION@)"
