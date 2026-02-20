@@ -11,15 +11,16 @@ namespace except {
 
 class Exception : public std::exception {
 public:
-  explicit Exception() = default;
   virtual ~Exception() = default;
   explicit Exception(std::string_view file, int line, std::string_view msg, bool is_errno);
 
-  std::string getMsg() const;
+  const char *what() const noexcept;
+  std::string stackFrame() const noexcept;
 
 protected:
   std::string msg_;
   int err_;
+  std::string stack_;
 };
 
 } // namespace except

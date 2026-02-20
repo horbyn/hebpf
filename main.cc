@@ -45,7 +45,9 @@ int main() {
     skeleton.destroy();
     std::cout << "\nShutting down" << "\n";
   } catch (const hebpf::except::Exception &exc) {
-    std::cerr << "[error] " << exc.getMsg() << "\n";
+    std::cerr << "[error]: " << exc.what() << "\n"
+              << "[stack frame]:" << "\n"
+              << exc.stackFrame() << "\n";
     return EXIT_FAILURE;
   } catch (const std::exception &exc) {
     std::cerr << "[error] " << exc.what() << "\n";

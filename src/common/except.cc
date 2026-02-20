@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <memory>
 #include "spdlog/spdlog.h"
+#include "src/common/stack_frame.h"
 // clang-format on
 
 namespace hebpf {
@@ -17,6 +18,7 @@ namespace except {
  * @param is_errno: 是否从 errno 中获取错误信息
  */
 Exception::Exception(std::string_view file, int line, std::string_view msg, bool is_errno) {
+  stack_ = stackTrace();
   err_ = errno;
   msg_ = fmt::format("[{}:{}] {}", file, line, msg);
 
@@ -34,7 +36,14 @@ Exception::Exception(std::string_view file, int line, std::string_view msg, bool
  *
  * @return std::string 出错信息
  */
-std::string Exception::getMsg() const { return msg_; }
+const char *Exception::what() const noexcept { return msg_.c_str(); }
+
+/**
+ * @brief 返回栈帧
+ *
+ * @return std::string 栈帧
+ */
+std::string Exception::stackFrame() const noexcept { return stack_; }
 
 } // namespace except
 } // namespace hebpf

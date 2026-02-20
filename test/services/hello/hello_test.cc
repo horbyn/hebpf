@@ -44,8 +44,8 @@ TEST(HelloEbpfTest, IntegratedFailure) {
     auto *obj = skel->skeleton->obj;
     auto *obj_elem0 = *(obj);
     enum bpf_object_state { OBJ_OPEN, OBJ_PREPARED, OBJ_LOADED, OBJ_INVALID };
-    enum bpf_object_state *state =
-        (enum bpf_object_state *)((char *)obj_elem0 + BPF_OBJ_NAME_LEN + 64 + sizeof(__u32));
+    enum bpf_object_state *state = reinterpret_cast<enum bpf_object_state *>(
+        reinterpret_cast<char *>(obj_elem0) + BPF_OBJ_NAME_LEN + 64 + sizeof(__u32));
     *state = OBJ_INVALID;
     HelloEbpf skeleton{std::unique_ptr<hello_bpf>(skel)};
     skeleton.open();

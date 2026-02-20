@@ -209,6 +209,10 @@ target_link_libraries(${PROJECT_NAME}
   PRIVATE
   ${PROJECT_NAME}::core
 )
+target_link_options(${PROJECT_NAME}
+  PRIVATE
+  -rdynamic
+)
 
 file(RELATIVE_PATH RELATIVE_BINARY_DIR ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR})
 message(STATUS "需要生成单元测试覆盖率报告, 执行\n"
