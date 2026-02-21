@@ -11,6 +11,6 @@ std::string demangle(std::string_view symbol);
 
 #define RTTI_NAME(obj) (demangle(typeid(obj).name()))
 
-std::string stackTrace();
+std::string stackTrace(bool async_signal_safe = false);
 
 } // namespace hebpf

@@ -18,6 +18,7 @@
 #include <string>
 #include <string_view>
 #include "spdlog/spdlog.h"
+#include "hebpf_version.h"
 // clang-format on
 
 namespace hebpf {
@@ -26,12 +27,11 @@ namespace log {
 using LoggerType = spdlog::logger;
 using LogLevel = spdlog::level::level_enum;
 
-enum class Id : std::uint8_t { hebpf, ebpf, MAXSIZE };
+enum class Id : std::uint8_t { hebpf, ebpf, daemon, MAXSIZE };
 enum class Level : std::uint8_t { trace, debug, info, warn, error, critical, off, MAXSIZE };
 
-constexpr std::string_view LOGNAME_DEFAULT{"hebpf"};
 constexpr Level LOGLEVEL_DEFAULT{Level::trace};
-constexpr std::string_view LOGFILE_DEFAULT{"/var/run/log/hebpf.log"};
+constexpr std::string_view LOGFILE_DEFAULT{"/var/run/log/" HEBPF_PROJECT ".log"};
 
 class LogConfig {
 public:
@@ -64,7 +64,7 @@ public:
 } // namespace log
 
 #define LEVEL(LEV) (static_cast<log::LogLevel>(log::Level::LEV))
-#define LOGGER() log::Logger::getLogger(std::string{log::LOGNAME_DEFAULT})
+#define LOGGER() log::Logger::getLogger(HEBPF_PROJECT)
 #define GLOBAL_LOG_TO(LOGGER, LEV, ...)                                                            \
   do {                                                                                             \
     if (static_cast<uint32_t>(log::Level::LEV) >=                                                  \

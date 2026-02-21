@@ -3,6 +3,7 @@
 #include <cxxabi.h>
 #include <execinfo.h>
 #include <memory>
+#include <unistd.h>
 // clang-format on
 
 namespace hebpf {
@@ -50,22 +51,29 @@ static std::string demangleWrapper(std::string_view symbol) {
 /**
  * @brief 回溯栈帧
  *
+ * @param bool async_signal_safe 是否为异步信号安全（默认否）
  * @return std::string 一个包含栈帧的字符串
  */
-std::string stackTrace() {
+std::string stackTrace(bool async_signal_safe) {
   constexpr std::size_t MAXSIZE = 256;
   std::array<void *, MAXSIZE> buffer{};
   std::string result{};
 
-  int nptrs = ::backtrace(buffer.data(), MAXSIZE);
-  std::unique_ptr<char *, void (*)(char **)> strings{::backtrace_symbols(buffer.data(), nptrs),
+  int nptrs = backtrace(buffer.data(), MAXSIZE);
+  if (async_signal_safe) {
+    // 异步信号安全需要将栈帧输出到 stderr
+    backtrace_symbols_fd(buffer.data(), nptrs, STDERR_FILENO);
+    return std::string{};
+  }
+  std::unique_ptr<char *, void (*)(char **)> strings{backtrace_symbols(buffer.data(), nptrs),
                                                      [](char **ptr) {
                                                        if (ptr)
                                                          std::free(ptr);
                                                      }};
 
+  constexpr int BASE = 2; // 下标 0 是当前栈帧即当前函数，下标 1 是 hebpf::Exception 构造函数
   if (strings) {
-    for (int i = 1; i < nptrs; ++i) {
+    for (int i = BASE; i < nptrs; ++i) {
       result += "[" + std::to_string(i) + "] ";
       result.append(demangleWrapper(strings.get()[i]));
       result.push_back('\n');

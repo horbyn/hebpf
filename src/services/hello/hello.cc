@@ -1,7 +1,7 @@
 // clang-format off
 #include "hello.h"
 #include "src/common/assert.h"
-#include "src/common/except.h"
+#include "src/common/exception.h"
 // clang-format on
 
 namespace hebpf {
@@ -21,6 +21,13 @@ HelloEbpf &HelloEbpf::operator=(HelloEbpf &&other) noexcept {
   }
   return *this;
 }
+
+/**
+ * @brief 获取 eBPF 程序名称
+ *
+ * @return std::string 名称
+ */
+std::string HelloEbpf::getName() const { return std::string{SERVICE_NAME_HELLO}; }
 
 /**
  * @brief 打开 eBPF 程序
@@ -81,3 +88,12 @@ HelloEbpf::operator bool() const { return skel_ != nullptr; }
 } // namespace hello
 } // namespace services
 } // namespace hebpf
+
+/**
+ * @brief 动态库导出接口：用来返回 eBPF 对象
+ *
+ * @return std::unique_ptr<hebpf::EbpfIf> 对象
+ */
+extern "C" std::unique_ptr<hebpf::EbpfIf> create_service() {
+  return std::make_unique<hebpf::services::hello::HelloEbpf>();
+}

@@ -144,6 +144,18 @@ include_directories(
   ${googletest_SOURCE_DIR}/googlemock/include
 )
 
+FetchContent_Declare(
+  yaml-cpp
+  GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+  GIT_TAG yaml-cpp-0.9.0
+  SOURCE_DIR   "${DEPS_DIR}/yaml-cpp_src"
+  BINARY_DIR   "${DEPS_BUILD_DIR}/yaml-cpp"
+  SUBBUILD_DIR "${DEPS_DIR}/yaml-cpp_subbuild"
+)
+FetchContent_MakeAvailable(yaml-cpp)
+message(STATUS "yaml-cpp 头文件目录: ${yaml-cpp_SOURCE_DIR}/include")
+include_directories(${yaml-cpp_SOURCE_DIR}/include)
+
 # 引入头文件
 include_directories(
   ${CMAKE_SOURCE_DIR}
@@ -199,6 +211,7 @@ add_subdirectory(src)
 add_library(${PROJECT_NAME}_core INTERFACE)
 target_link_libraries(${PROJECT_NAME}_core INTERFACE
   common
+  daemon
   log
   hello
 )

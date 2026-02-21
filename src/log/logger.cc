@@ -64,7 +64,7 @@ void LogConfig::setLogFile(std::string_view file) {
   fs::path log_path =
       file.empty() ? fs::path{std::string{log::LOGFILE_DEFAULT}} : fs::path{std::string{file}};
   if (fs::is_directory(log_path)) {
-    log_path /= fmt::format("{}.log", LOGNAME_DEFAULT);
+    log_path /= HEBPF_PROJECT ".log";
   }
 
   file_ = log_path.string();
@@ -88,7 +88,7 @@ void LogConfig::setStdout(bool set) { g_stdout.store(set); }
  * @return std::shared_ptr<log::LoggerType> 全局日志对象
  */
 std::shared_ptr<log::LoggerType> Logger::getLogger(std::string_view log_name) {
-  std::string log_name2 = log_name.empty() ? std::string{LOGNAME_DEFAULT} : std::string{log_name};
+  std::string log_name2 = log_name.empty() ? std::string{HEBPF_PROJECT} : std::string{log_name};
 
   std::lock_guard<std::mutex> lock(g_mutex);
   if (g_map.find(log_name2) == g_map.end()) {
