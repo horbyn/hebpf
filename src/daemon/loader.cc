@@ -12,9 +12,9 @@ namespace daemon {
  * @brief 加载 eBPF 程序
  *
  * @param so_path eBPF 程序动态库路径（必须是 so 动态库）
- * @return std::string eBPF 程序名称
+ * @return bool 加载成功返回 true，加载失败返回 false
  */
-std::string Loader::loadService(std::string_view so_path) {
+bool Loader::loadService(std::string_view so_path) {
   ASSERT(!so_path.empty());
   std::lock_guard<std::mutex> lock(mutex_);
 
@@ -32,31 +32,32 @@ std::string Loader::loadService(std::string_view so_path) {
   if (temp_instance == nullptr) {
     throw EXCEPT(fmt::format("Exported function from {} returned nullptr", so_path));
   }
-  std::string service_name = temp_instance->getName();
 
-  if (services_.find(service_name) != services_.end()) {
-    LOG(warn, "Service already loaded: {}", service_name);
-    return service_name;
+  auto so_path_str = std::string{so_path};
+  if (services_.find(so_path_str) != services_.end()) {
+    LOG(warn, "Service already loaded: {}", so_path);
+    return false;
   }
 
+  auto service_name = temp_instance->getName();
   ServiceHandle serv{std::move(handle), std::move(temp_instance), service_name,
                      std::string{so_path}};
 
-  services_[service_name] = std::move(serv);
+  services_[so_path_str] = std::move(serv);
   LOG(info, "Service \"{}\" loaded from {}", service_name, so_path);
-  return service_name;
+  return true;
 }
 
 /**
  * @brief 卸载 eBPF 程序
  *
- * @param service_name eBPF 程序名称
+ * @param so_path eBPF 程序动态库路径（必须是 so 动态库）
  * @return true 卸载成功
  * @return false 卸载失败
  */
-bool Loader::unloadServices(std::string_view service_name) {
+bool Loader::unloadServices(std::string_view so_path) {
   std::lock_guard<std::mutex> lock(mutex_);
-  auto it = services_.find(std::string{service_name});
+  auto it = services_.find(std::string{so_path});
   if (it == services_.end()) {
     return false;
   }
@@ -70,19 +71,19 @@ bool Loader::unloadServices(std::string_view service_name) {
   }
   services_.erase(it);
 
-  LOG(info, "Service \"{}\" unloaded", service_name);
+  LOG(info, "Service \"{}\" unloaded", so_path);
   return true;
 }
 
 /**
  * @brief 获取 eBPF 程序实例（eBPF 服务）
  *
- * @param service_name eBPF 程序名称
+ * @param so_path eBPF 程序动态库路径（必须是 so 动态库）
  * @return EbpfIf* 对象
  */
-EbpfIf *Loader::getService(std::string_view service_name) const {
+EbpfIf *Loader::getService(std::string_view so_path) const {
   std::lock_guard<std::mutex> lock(mutex_);
-  auto it = services_.find(std::string{service_name});
+  auto it = services_.find(std::string{so_path});
   if (it == services_.end()) {
     return nullptr;
   }
@@ -92,7 +93,7 @@ EbpfIf *Loader::getService(std::string_view service_name) const {
 /**
  * @brief 获取全部已经加载的 eBPF 程序
  *
- * @return std::vector<std::string> 全部已经加载的 eBPF 程序
+ * @return std::vector<std::string> 全部已经加载的 eBPF 程序动态库路径（必须是 so 动态库）
  */
 std::vector<std::string> Loader::getAllService() const {
   std::lock_guard<std::mutex> lock(mutex_);

@@ -18,14 +18,22 @@ constexpr std::string_view CONFIGS_LOGPATH{"logpath"};
 constexpr std::string_view CONFIGS_LOGLEVEL{"loglevel"};
 constexpr std::string_view CONFIGS_EBPFSO{"ebpf"};
 
-class Configs final {
+class Configs final : public log::Loggable<log::Id::daemon> {
 public:
+  Configs() = default;
+  Configs(std::string_view configs_path);
+
+  static Configs loadFromConfig(std::string_view filepath);
+
   void setLog(std::string_view logpath);
   std::string getLog() const;
   void setLogLevel(log::Level level);
   log::Level getLogLevel() const;
   void setEbpf(const std::vector<std::string> &ebpf_so);
   std::vector<std::string> getEbpf() const;
+
+  bool operator==(const Configs &other) const;
+  bool operator!=(const Configs &other) const;
 
 private:
   std::string log_{log::LOGFILE_DEFAULT};

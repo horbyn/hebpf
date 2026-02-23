@@ -4,12 +4,13 @@
 #include <chrono>
 #include <exception>
 #include <fstream>
-#include <filesystem>
 #include <iostream>
 #include <thread>
 #include "src/common/exception.h"
 #include "src/common/stack_frame.h"
 #include "src/daemon/configs.hpp"
+#include "src/daemon/config_watcher.h"
+#include "src/daemon/daemon.h"
 #include "src/daemon/loader.h"
 #include "hebpf_version.h"
 // clang-format on
@@ -63,31 +64,13 @@ bool generateEmptyConfigFile(int argc, char **argv) {
   return false;
 }
 
-/**
- * @brief 从配置文件解析配置
- *
- * @return hebpf::daemon::Configs 配置对象
- */
-hebpf::daemon::Configs parseCniConfig(std::string_view filepath) {
-  using namespace hebpf;
-  daemon::Configs configs{};
-
-  namespace fs = std::filesystem;
-  fs::path path{filepath};
-  if (std::filesystem::is_regular_file(path)) {
-    YAML::Node node = YAML::LoadFile(path.string());
-    configs = node.as<daemon::Configs>();
-  }
-
-  return configs;
-}
-
 int main(int argc, char **argv) {
   using namespace hebpf;
 
   try {
     // 留个后门用来生成空的配置文件
     if (generateEmptyConfigFile(argc, argv)) {
+      GLOBAL_LOG(info, "Configuration {} generated in current directory", daemon::CONFIGS_DEFAULT);
       return EXIT_SUCCESS;
     }
 
@@ -95,52 +78,29 @@ int main(int argc, char **argv) {
     std::signal(SIGTERM, signalHandler);
     std::signal(SIGSEGV, crashHandler);
 
-    daemon::Configs configs = parseCniConfig(daemon::CONFIGS_DEFAULT);
-
+    // 这是根据配置文件先进行初始化，后续是可以热更新的
+    // TODO: 热更新目前只支持 eBPF 程序
+    daemon::Configs configs{daemon::CONFIGS_DEFAULT};
     log::LogConfig log_conf{};
     log_conf.setStdout(true);
     log_conf.setLogFile(configs.getLog());
     log_conf.setLevel(configs.getLogLevel());
     GLOBAL_LOG(info, "Launch " HEBPF_PROJECT " v" HEBPF_VERSION);
 
-    daemon::Loader loader{};
+    auto loader = std::make_unique<daemon::Loader>();
+    daemon::Daemon daemon{std::move(loader)};
+    daemon.run();
 
-    const auto &ebpf = configs.getEbpf();
-    for (const auto &so_path : ebpf) {
-      std::string so_name = loader.loadService(so_path);
-      auto *service = loader.getService(so_name);
-      if (service == nullptr) {
-        throw EXCEPT(fmt::format("Cannot load service: ", so_name));
-      }
-
-      // 打开 BPF skeleton
-      service->open();
-      if (!service) {
-        std::cerr << "Failed to open BPF service" << "\n";
-        return 1;
-      }
-
-      // 加载并验证 eBPF 程序
-      service->load();
-
-      // 附加到挂载点
-      service->attach();
-    }
-
-    GLOBAL_LOG(info, "eBPF program running! Press Ctrl+C to stop");
-    GLOBAL_LOG(info, "Run `sudo cat /sys/kernel/debug/tracing/trace_pipe` to view logs");
+    daemon::ConfigWatcher watcher{daemon::CONFIGS_DEFAULT};
+    watcher.start(std::bind(&daemon::Daemon::OnConfigChanged, &daemon, std::placeholders::_1));
 
     // 主循环
     while (keep_running) {
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
-    const auto &all_ebpf = loader.getAllService();
-    for (const auto &so_name : all_ebpf) {
-      auto *service = loader.getService(so_name);
-      service->detach();
-      service->destroy();
-    }
+    watcher.stop();
+    daemon.stop();
 
     GLOBAL_LOG(info, "Shutting down");
   } catch (const hebpf::except::Exception &exc) {

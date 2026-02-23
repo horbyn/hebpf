@@ -35,9 +35,9 @@ struct ServiceHandle {
 
 class Loader : public LoaderIf, public log::Loggable<log::Id::daemon> {
 public:
-  std::string loadService(std::string_view so_path) override;
-  bool unloadServices(std::string_view service_name) override;
-  EbpfIf *getService(std::string_view service_name) const override;
+  bool loadService(std::string_view so_path) override;
+  bool unloadServices(std::string_view so_path) override;
+  EbpfIf *getService(std::string_view so_path) const override;
   std::vector<std::string> getAllService() const override;
 
 private:
