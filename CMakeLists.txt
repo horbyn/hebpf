@@ -156,12 +156,20 @@ FetchContent_MakeAvailable(yaml-cpp)
 message(STATUS "yaml-cpp 头文件目录: ${yaml-cpp_SOURCE_DIR}/include")
 include_directories(${yaml-cpp_SOURCE_DIR}/include)
 
+find_package(Boost 1.70 REQUIRED)
+if (Boost_FOUND)
+  message(STATUS "Found Boost ${Boost_VERSION}")
+else()
+  message(FATAL_ERROR "Boost not found")
+endif()
+
 # 引入头文件
 include_directories(
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/src/services
   ${LIBBPF_INCLUDE_DIRS}
+  ${Boost_INCLUDE_DIRS}
 )
 
 find_package(BpfObject REQUIRED)
@@ -212,8 +220,11 @@ add_library(${PROJECT_NAME}_core INTERFACE)
 target_link_libraries(${PROJECT_NAME}_core INTERFACE
   common
   daemon
-  log
+  fd
   hello
+  inotify
+  log
+  signal
 )
 add_library(${PROJECT_NAME}::core ALIAS ${PROJECT_NAME}_core)
 

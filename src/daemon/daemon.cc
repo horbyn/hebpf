@@ -44,6 +44,7 @@ void Daemon::stop() {
     auto *service = loader_->getService(so_name);
     service->detach();
     service->destroy();
+    loader_->unloadServices(so_name);
   }
   LOG(info, "eBPF programs stopped");
 }

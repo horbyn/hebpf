@@ -28,7 +28,7 @@ RUN apt-get update && apt install -y --no-install-recommends ca-certificates && 
     fi && \
     apt-get update && apt install -y --no-install-recommends \
         build-essential make gdb sudo vim wget git cmake gcovr valgrind \
-        pkg-config clang libelf1 libelf-dev zlib1g-dev \
+        pkg-config clang libelf1 libelf-dev zlib1g-dev libboost-all-dev \
         systemd init plocate language-pack-en tree zsh && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get clean && \

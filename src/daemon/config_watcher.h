@@ -8,6 +8,7 @@
 #include <thread>
 #include "src/daemon/configs.hpp"
 #include "src/log/logger.h"
+#include "src/signal/signal_if.h"
 // clang-format on
 
 namespace hebpf {
@@ -17,13 +18,14 @@ using ConfigChangeCallback = std::function<void(const Configs &)>;
 
 class ConfigWatcher : public log::Loggable<log::Id::daemon> {
 public:
-  explicit ConfigWatcher(std::string_view config_path);
+  explicit ConfigWatcher(std::string_view config_path, signal::SignalIf &signal);
   ~ConfigWatcher();
 
   void start(ConfigChangeCallback callback);
   void stop();
 
 private:
+  void loadConfig(std::string_view path);
   void watchLoop() noexcept;
 
   std::string config_path_;
@@ -32,6 +34,7 @@ private:
   ConfigChangeCallback callback_;
   Configs last_config_;
   std::mutex config_mutex_;
+  signal::SignalIf &signal_;
 };
 
 } // namespace daemon

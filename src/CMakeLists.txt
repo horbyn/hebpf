@@ -1,4 +1,7 @@
 add_subdirectory(common)
 add_subdirectory(daemon)
+add_subdirectory(fd)
+add_subdirectory(inotify)
 add_subdirectory(log)
 add_subdirectory(services)
+add_subdirectory(signal)

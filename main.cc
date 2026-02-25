@@ -1,5 +1,4 @@
 // clang-format off
-#include <cstdlib>
 #include <csignal>
 #include <chrono>
 #include <exception>
@@ -7,32 +6,13 @@
 #include <iostream>
 #include <thread>
 #include "src/common/exception.h"
-#include "src/common/stack_frame.h"
 #include "src/daemon/configs.hpp"
 #include "src/daemon/config_watcher.h"
 #include "src/daemon/daemon.h"
 #include "src/daemon/loader.h"
+#include "src/signal/signal.h"
 #include "hebpf_version.h"
 // clang-format on
-
-static volatile bool keep_running = true;
-void signalHandler(int) { keep_running = false; }
-void crashHandler(int sig) {
-  signalHandler(sig);
-
-  constexpr std::string_view PROMPT{"Caught signal: "};
-  write(STDERR_FILENO, PROMPT.data(), PROMPT.size());
-
-  char sigbuf[32];
-  int len = snprintf(sigbuf, sizeof(sigbuf), "%d\n", sig);
-  write(STDERR_FILENO, sigbuf, len);
-
-  hebpf::stackTrace(true);
-
-  // 恢复默认信号
-  signal(sig, SIG_DFL);
-  raise(sig);
-}
 
 /**
  * @brief 获取空配置
@@ -74,9 +54,10 @@ int main(int argc, char **argv) {
       return EXIT_SUCCESS;
     }
 
-    std::signal(SIGINT, signalHandler);
-    std::signal(SIGTERM, signalHandler);
-    std::signal(SIGSEGV, crashHandler);
+    auto &signal = hebpf::signal::Signal::instance();
+    signal.registerSignal(SIGINT, signal::Signal::commonSignalHandler);
+    signal.registerSignal(SIGTERM, signal::Signal::commonSignalHandler);
+    signal.registerSignal(SIGSEGV, signal::Signal::crashSignalHandler);
 
     // 这是根据配置文件先进行初始化，后续是可以热更新的
     // TODO: 热更新目前只支持 eBPF 程序
@@ -91,11 +72,11 @@ int main(int argc, char **argv) {
     daemon::Daemon daemon{std::move(loader)};
     daemon.run();
 
-    daemon::ConfigWatcher watcher{daemon::CONFIGS_DEFAULT};
+    daemon::ConfigWatcher watcher{daemon::CONFIGS_DEFAULT, signal};
     watcher.start(std::bind(&daemon::Daemon::OnConfigChanged, &daemon, std::placeholders::_1));
 
     // 主循环
-    while (keep_running) {
+    while (!signal.shouldStop()) {
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
