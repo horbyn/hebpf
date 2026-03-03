@@ -28,7 +28,7 @@ struct DlCloser {
  */
 struct ServiceHandle {
   std::unique_ptr<void, DlCloser> handle; // 动态库 handle
-  std::unique_ptr<EbpfIf> instance;       // eBPF 对象
+  std::unique_ptr<ebpf::EbpfIf> instance; // eBPF 对象
   std::string name;                       // eBPF 程序名称
   std::string path;                       // eBPF 动态库路径
 };
@@ -37,7 +37,7 @@ class Loader : public LoaderIf, public log::Loggable<log::Id::daemon> {
 public:
   bool loadService(std::string_view so_path) override;
   bool unloadServices(std::string_view so_path) override;
-  EbpfIf *getService(std::string_view so_path) const override;
+  ebpf::EbpfIf *getService(std::string_view so_path) const override;
   std::vector<std::string> getAllService() const override;
 
 private:

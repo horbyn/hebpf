@@ -22,6 +22,9 @@ include(GoogleTest)
 
 # 单元测试宏定义
 macro(compile_unit_test target_name)
+  set(multiValueArgs LIBS)
+  cmake_parse_arguments(UT "" "" "${multiValueArgs}" ${ARGN})
+
   add_executable(
     ${target_name}
     ${target_name}.cc
@@ -31,6 +34,8 @@ macro(compile_unit_test target_name)
     GTest::gtest_main
     GTest::gmock_main
     ${PROJECT_NAME}::core
+    ${UT_LIBS}
+    ${ELF_LIBRARY}
   )
   gtest_discover_tests(${target_name}
     PROPERTIES LABELS "Unittests"

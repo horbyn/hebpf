@@ -20,9 +20,9 @@ public:
   bool removeWatch(std::string_view path) override;
   void setInotifyCb(InotifyCb cb) override;
   void processInotify(const char *buffer, size_t length) override;
+  int getFd() const noexcept override;
 
   std::vector<std::string> listWatches() const;
-  int getFd() const noexcept;
 
 private:
   std::unique_ptr<FdIf> fd_;

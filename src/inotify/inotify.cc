@@ -77,7 +77,7 @@ void Inotify::setInotifyCb(InotifyCb cb) { cb_ = std::move(cb); }
  * @param length 缓存大小
  */
 void Inotify::processInotify(const char *buffer, size_t length) {
-  ASSERT(cb_ != nullptr);
+  ASSERT(cb_);
 
   const char *ptr = buffer;
   const char *end = ptr + length;
@@ -98,6 +98,17 @@ void Inotify::processInotify(const char *buffer, size_t length) {
 }
 
 /**
+ * @brief 获取 inotify 背后的 fd
+ *
+ * @return int 文件描述符
+ */
+int Inotify::getFd() const noexcept {
+  ASSERT(fd_ != nullptr);
+  ASSERT(fd_->fd() != FD_INVALID);
+  return fd_->fd();
+}
+
+/**
  * @brief 列举所有监控项
  *
  * @return std::vector<std::string> 监控地址数组
@@ -108,12 +119,6 @@ std::vector<std::string> Inotify::listWatches() const {
     result.emplace_back(path);
   }
   return result;
-}
-
-int Inotify::getFd() const noexcept {
-  ASSERT(fd_ != nullptr);
-  ASSERT(fd_->fd() != FD_INVALID);
-  return fd_->fd();
 }
 
 } // namespace inotify

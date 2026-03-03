@@ -152,6 +152,7 @@ FetchContent_Declare(
   BINARY_DIR   "${DEPS_BUILD_DIR}/yaml-cpp"
   SUBBUILD_DIR "${DEPS_DIR}/yaml-cpp_subbuild"
 )
+set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Disable building yaml-cpp tools" FORCE)
 FetchContent_MakeAvailable(yaml-cpp)
 message(STATUS "yaml-cpp 头文件目录: ${yaml-cpp_SOURCE_DIR}/include")
 include_directories(${yaml-cpp_SOURCE_DIR}/include)
@@ -161,6 +162,13 @@ if (Boost_FOUND)
   message(STATUS "Found Boost ${Boost_VERSION}")
 else()
   message(FATAL_ERROR "Boost not found")
+endif()
+
+find_library(ELF_LIBRARY elf REQUIRED)
+if (ELF_LIBRARY)
+  message(STATUS "Found elf library: ${ELF_LIBRARY}")
+else()
+  message(FATAL_ERROR "elf library not found")
 endif()
 
 # 引入头文件
@@ -220,11 +228,13 @@ add_library(${PROJECT_NAME}_core INTERFACE)
 target_link_libraries(${PROJECT_NAME}_core INTERFACE
   common
   daemon
+  ebpf
   fd
-  hello
   inotify
+  io
   log
   signal
+  thread
 )
 add_library(${PROJECT_NAME}::core ALIAS ${PROJECT_NAME}_core)
 

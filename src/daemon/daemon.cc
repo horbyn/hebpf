@@ -1,8 +1,10 @@
 // clang-format off
 #include "daemon.h"
+#include <pthread.h>
 #include "loader.h"
 #include "src/common/assert.h"
 #include "src/common/exception.h"
+#include "src/thread/thread.h"
 // clang-format on
 
 namespace hebpf {
@@ -20,9 +22,9 @@ void Daemon::run() {
   }
 
   running_.store(true);
-  monitor_thread_ = std::thread(&Daemon::eventLoop, this);
-  LOG(info, "eBPF programs running! Press Ctrl+C to stop");
-  LOG(info, "Run `sudo cat /sys/kernel/debug/tracing/trace_pipe` to view logs");
+  monitor_thread_ = std::make_unique<thread::Thread>();
+  monitor_thread_->setName(NAME_DAEMON);
+  monitor_thread_->start(std::bind(&Daemon::eventLoop, this));
 }
 
 /**
@@ -35,16 +37,19 @@ void Daemon::stop() {
   }
 
   running_.store(false);
-  if (monitor_thread_.joinable()) {
-    monitor_thread_.join();
+  if (monitor_thread_->joinable()) {
+    monitor_thread_->join();
   }
 
-  const auto &all_ebpf = loader_->getAllService();
-  for (const auto &so_name : all_ebpf) {
-    auto *service = loader_->getService(so_name);
-    service->detach();
-    service->destroy();
-    loader_->unloadServices(so_name);
+  if (loader_ != nullptr) {
+    const auto &all_ebpf = loader_->getAllService();
+    for (const auto &so_name : all_ebpf) {
+      auto *service = loader_->getService(so_name);
+      if (service != nullptr) {
+        service->stop();
+      }
+      loader_->unloadServices(so_name);
+    }
   }
   LOG(info, "eBPF programs stopped");
 }
@@ -66,8 +71,8 @@ void Daemon::OnConfigChanged(const Configs &config) {
         GLOBAL_LOG(error, "Cannot get service in unloading: ", so);
         continue;
       }
-      service->detach();
-      service->destroy();
+
+      service->stop();
 
       loader_->unloadServices(so);
     }
@@ -86,21 +91,25 @@ void Daemon::OnConfigChanged(const Configs &config) {
         continue;
       }
 
-      // 打开 BPF skeleton
-      service->open();
-      if (!service) {
-        GLOBAL_LOG(error, "Failed to open BPF service");
+      if (!service->start(io_ctx_)) {
+        GLOBAL_LOG(error, "Failed to start BPF service");
         continue;
       }
-
-      // 加载并验证 eBPF 程序
-      service->load();
-
-      // 附加到挂载点
-      service->attach();
     }
   }
   current_so_ = new_so;
+}
+
+/**
+ * @brief 设置 io 模块
+ *
+ * @param io_ctx io 对象
+ * @return true 设置成功
+ * @return false 设置失败
+ */
+bool Daemon::setIoContext(std::weak_ptr<io::IoIf> io_ctx) {
+  io_ctx_ = io_ctx;
+  return static_cast<bool>(io_ctx_.lock() != nullptr);
 }
 
 /**

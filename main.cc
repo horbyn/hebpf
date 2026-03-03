@@ -10,6 +10,8 @@
 #include "src/daemon/config_watcher.h"
 #include "src/daemon/daemon.h"
 #include "src/daemon/loader.h"
+#include "src/inotify/inotify.h"
+#include "src/io/io.h"
 #include "src/signal/signal.h"
 #include "hebpf_version.h"
 // clang-format on
@@ -68,19 +70,29 @@ int main(int argc, char **argv) {
     log_conf.setLevel(configs.getLogLevel());
     GLOBAL_LOG(info, "Launch " HEBPF_PROJECT " v" HEBPF_VERSION);
 
+    auto io_ctx = std::make_shared<io::Io>();
     auto loader = std::make_unique<daemon::Loader>();
     daemon::Daemon daemon{std::move(loader)};
+    if (!daemon.setIoContext(io_ctx)) {
+      throw EXCEPT("Failed to setup io context");
+    }
     daemon.run();
 
-    daemon::ConfigWatcher watcher{daemon::CONFIGS_DEFAULT, signal};
-    watcher.start(std::bind(&daemon::Daemon::OnConfigChanged, &daemon, std::placeholders::_1));
+    daemon::ConfigWatcher watcher{std::make_unique<inotify::Inotify>()};
+    if (!watcher.setIoContext(io_ctx)) {
+      throw EXCEPT("Failed to setup io context");
+    }
+    watcher.registerConfigChangeEvents(
+        daemon::CONFIGS_DEFAULT,
+        daemon::ConfigChangeCallback{
+            "daemon::Daemon::OnConfigChanged()",
+            std::bind(&daemon::Daemon::OnConfigChanged, &daemon, std::placeholders::_1)});
 
     // 主循环
     while (!signal.shouldStop()) {
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
-    watcher.stop();
     daemon.stop();
 
     GLOBAL_LOG(info, "Shutting down");

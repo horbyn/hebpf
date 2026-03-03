@@ -10,10 +10,10 @@ namespace hebpf {
 
 // hebpf 假设失效时行为: Release 直接输出 stderr, Debug 立即终止以便 coredump
 #ifdef NDEBUG
-#define ACTION()                                                                                   \
+#define ASSERT_ACTION()                                                                            \
   std::cerr << "hebpf assertion failed in " << (__FILE__) << ":" << (__LINE__) << "\n"
 #else
-#define ACTION() std::abort()
+#define ASSERT_ACTION() std::abort()
 #endif
 
 // hebpf 运行时假设性检查
@@ -21,7 +21,7 @@ namespace hebpf {
   do {                                                                                             \
     assert((expr));                                                                                \
     if (!(expr)) {                                                                                 \
-      ACTION();                                                                                    \
+      ASSERT_ACTION();                                                                             \
     }                                                                                              \
   } while (0)
 

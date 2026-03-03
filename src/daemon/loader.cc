@@ -81,7 +81,7 @@ bool Loader::unloadServices(std::string_view so_path) {
  * @param so_path eBPF 程序动态库路径（必须是 so 动态库）
  * @return EbpfIf* 对象
  */
-EbpfIf *Loader::getService(std::string_view so_path) const {
+ebpf::EbpfIf *Loader::getService(std::string_view so_path) const {
   std::lock_guard<std::mutex> lock(mutex_);
   auto it = services_.find(std::string{so_path});
   if (it == services_.end()) {

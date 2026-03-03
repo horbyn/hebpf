@@ -1,9 +1,12 @@
 // clang-format off
 #include "config_watcher.h"
+#include <pthread.h>
 #include <sys/inotify.h>
 #include <chrono>
 #include <filesystem>
 #include <boost/asio.hpp>
+#include "src/common/assert.h"
+#include "src/common/common.h"
 #include "src/common/exception.h"
 #include "src/inotify/inotify.h"
 // clang-format on
@@ -11,37 +14,80 @@
 namespace hebpf {
 namespace daemon {
 
-ConfigWatcher::ConfigWatcher(std::string_view config_path, signal::SignalIf &signal)
-    : config_path_{config_path}, signal_{signal} {}
-
-ConfigWatcher::~ConfigWatcher() { stop(); }
+ConfigWatcher::ConfigWatcher(std::unique_ptr<inotify::InotifyIf> inotify)
+    : inotify_{std::move(inotify)} {}
 
 /**
- * @brief 启动 watcher
+ * @brief 注册配置文件变化事件
  *
- * @param callback 回调函数
+ * @param config 配置文件路径
+ * @param callback 回调事件
  */
-void ConfigWatcher::start(ConfigChangeCallback callback) {
-  if (running_.load()) {
+void ConfigWatcher::registerConfigChangeEvents(std::string_view config,
+                                               ConfigChangeCallback callback) {
+  ASSERT(inotify_ != nullptr);
+
+  if (config_path_ == config) {
     return;
   }
+  config_path_ = std::string{config};
+
+  // 获取配置文件所在目录（用于监控目录，避免文件替换问题）
+  namespace fs = std::filesystem;
+  fs::path p(config_path_);
+  std::string dir_path = p.parent_path().string();
+  if (dir_path.empty()) {
+    dir_path = ".";
+  }
+
   callback_ = std::move(callback);
-  running_.store(true);
-  watch_thread_ = std::thread(&ConfigWatcher::watchLoop, this);
+
+  if (!inotify_->addWatch(dir_path, IN_CLOSE_WRITE | IN_MOVED_TO)) {
+    throw EXCEPT("Inotify add watch failed");
+  }
+  inotify_->setInotifyCb(
+      inotify::InotifyCb{FUNCTION_LINE, [this](std::string_view name, uint32_t mask) {
+                           if (config_path_.find(name) != std::string::npos) {
+                             GLOBAL_LOG(trace, "Config file {} changed, mask is {:#x}", name, mask);
+                             loadConfig(config_path_);
+                           }
+                         }});
+  LOG(info, "Inotify watch directory {}", dir_path);
+
+  int inotify_fd = inotify_->getFd();
+  if (inotify_fd == FD_INVALID) {
+    throw EXCEPT("Failed to get inotify fd");
+  }
+
+  auto io_ctx_val = io_ctx_.lock();
+  if (io_ctx_val == nullptr) {
+    throw EXCEPT("MUST provide a io context");
+  }
+
+  inotify_watcher_ = io_ctx_val->addReadCb(
+      inotify_fd, io::IoCb{FUNCTION_LINE, [this, inotify_fd]() {
+                             constexpr int MAXSIZE_BUFFER{4096};
+                             std::array<char, MAXSIZE_BUFFER> buffer{};
+                             ssize_t len = read(inotify_fd, buffer.data(), buffer.size());
+                             if (len > 0) {
+                               inotify_->processInotify(buffer.data(), len);
+                             }
+                           }});
+
+  // 初始加载配置
+  loadConfig(config);
 }
 
 /**
- * @brief 停止 watcher
+ * @brief 设置 io 模块
  *
+ * @param io_ctx io 对象
+ * @return true 设置成功
+ * @return false 设置失败
  */
-void ConfigWatcher::stop() {
-  if (!running_.load()) {
-    return;
-  }
-  running_.store(false);
-  if (watch_thread_.joinable()) {
-    watch_thread_.join();
-  }
+bool ConfigWatcher::setIoContext(std::weak_ptr<io::IoIf> io_ctx) {
+  io_ctx_ = io_ctx;
+  return static_cast<bool>(io_ctx_.lock() != nullptr);
 }
 
 /**
@@ -61,77 +107,6 @@ void ConfigWatcher::loadConfig(std::string_view path) {
     }
   } catch (const std::exception &exc) {
     GLOBAL_LOG(warn, "Failed to load config: {}", exc.what());
-  }
-}
-
-/**
- * @brief watcher 事件循环
- *
- */
-void ConfigWatcher::watchLoop() noexcept {
-  try {
-
-    inotify::Inotify inotify{};
-
-    // 获取配置文件所在目录（用于监控目录，避免文件替换问题）
-    namespace fs = std::filesystem;
-    fs::path p(config_path_);
-    std::string dir_path = p.parent_path().string();
-    if (dir_path.empty()) {
-      dir_path = ".";
-    }
-    LOG(info, "Inotify watch directory {}", dir_path);
-
-    if (!inotify.addWatch(dir_path, IN_CLOSE_WRITE | IN_MOVED_TO)) {
-      throw EXCEPT("Inotify add watch failed");
-    }
-    inotify.setInotifyCb([&](std::string_view name, uint32_t mask) {
-      if (config_path_.find(name) != std::string::npos) {
-        LOG(trace, "Config file {} changed, mask is {:#x}", name, mask);
-        loadConfig(config_path_);
-      }
-    });
-
-    int inotify_fd = inotify.getFd();
-    if (inotify_fd == FD_INVALID) {
-      throw EXCEPT("Failed to get inotify fd");
-    }
-
-    boost::asio::io_context io_ctx{};
-    boost::asio::posix::stream_descriptor stream{io_ctx, inotify_fd};
-    std::array<char, 4096> buffer{};
-    std::function<void(const boost::system::error_code &, std::size_t)> read_handler =
-        [&](const boost::system::error_code &ec, std::size_t length) {
-          if (!ec) {
-            inotify.processInotify(buffer.data(), length);
-            stream.async_read_some(boost::asio::buffer(buffer), read_handler);
-          }
-        };
-    stream.async_read_some(boost::asio::buffer(buffer), read_handler);
-
-    boost::asio::posix::stream_descriptor stop_stream{io_ctx};
-    int stop_fd = signal_.dupStopFd();
-    if (stop_fd != FD_INVALID) {
-      stop_stream.assign(stop_fd);
-      uint64_t stop_val{};
-      stop_stream.async_read_some(boost::asio::buffer(&stop_val, sizeof(stop_val)),
-                                  [&](const boost::system::error_code &ec, std::size_t) {
-                                    if (!ec) {
-                                      io_ctx.stop();
-                                      LOG(info, "Stop event received, exiting watch loop");
-                                    }
-                                  });
-    }
-
-    // 初始加载配置
-    loadConfig(config_path_);
-
-    io_ctx.run();
-
-  } catch (const except::Exception &exc) {
-    LOG(error, "\n[watcher error] {}\n[watcher stackframe]\n{}", exc.what(), exc.stackFrame());
-  } catch (const std::exception &exc) {
-    LOG(error, "\n[watcher error] {}", exc.what());
   }
 }
 
