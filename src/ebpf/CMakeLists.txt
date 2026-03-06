@@ -8,4 +8,5 @@ add_dependencies(ebpf
 target_link_libraries(ebpf
   ${LIBBPF_LIBRARIES}
   ${ELF_LIBRARY}
+  ${Z_LIBRARY}
 )

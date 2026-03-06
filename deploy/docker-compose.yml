@@ -1,0 +1,58 @@
+services:
+  hebpf:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - ARCH=aarch64
+    image: ebpf:latest
+    container_name: ebpfc
+    platform: linux/arm64
+    privileged: true
+    volumes:
+      - ../:/hebpf
+    command: /sbin/init
+    restart: unless-stopped
+    networks:
+      - hebpfnet
+    ports:
+      - "8080:8080"
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: promc
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - hebpfnet
+    depends_on:
+      - hebpf
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafanac
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana:/etc/grafana/provisioning/datasources
+    networks:
+      - hebpfnet
+    depends_on:
+      - prometheus
+
+networks:
+  hebpfnet:
+    driver: bridge
+
+volumes:
+  prometheus_data:
+  grafana_data:

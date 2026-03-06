@@ -3,13 +3,12 @@
 // clang-format off
 #include <thread>
 #include "thread_if.h"
-#include "src/log/logger.h"
 // clang-format on
 
 namespace hebpf {
 namespace thread {
 
-class Thread : public ThreadIf, public log::Loggable<log::Id::common> {
+class Thread : public ThreadIf {
 public:
   ~Thread();
 

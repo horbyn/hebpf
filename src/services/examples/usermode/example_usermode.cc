@@ -1,6 +1,8 @@
 // clang-format off
 #include "example_usermode.h"
 #include "src/common/exception.h"
+#include "src/data/metrics.h"
+#include "src/data/services/examples/usermode/execve_event.h"
 #include "src/ebpf/ringbuffer.h"
 #include "src/fd/fd.h"
 // clang-format on
@@ -68,6 +70,28 @@ void ExampleUsermodeEbpf::stop() {
 }
 
 /**
+ * @brief 获取 eBPF 内核态数据
+ *
+ * @return nlohmann::json 内核数据对象
+ */
+nlohmann::json ExampleUsermodeEbpf::getStatus() const {
+  static const std::string METRIC_NAME{"execve_total"};
+  static const std::string METRIC_COMMAND{"COMM"};
+
+  Metrics metrics{};
+  metrics.service_ = getName();
+
+  if (count_ > 0) {
+    ExecveEvent execve_event{};
+    execve_event.name_ = METRIC_NAME;
+    execve_event.value_ = count_;
+    execve_event.labels_.emplace(std::string{JKEY_METRICS_SERVICE}, getName());
+    metrics.metrics_.push_back(execve_event);
+  }
+  return metrics;
+}
+
+/**
  * @brief 内核事件到达
  *
  * @param data 内核数据
@@ -82,8 +106,10 @@ int ExampleUsermodeEbpf::onEvent(void *data, size_t data_sz) {
 
   const struct execve_event *event = static_cast<const struct execve_event *>(data);
   if (event != nullptr) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    GLOBAL_LOG(info, "{}: pid={}, COMM={}", SERVICE_NAME_USERMODE, event->pid, event->comm);
+    {
+      std::lock_guard<std::mutex> lock{mutex_};
+      count_ = event->count;
+    }
   }
   return 0;
 }

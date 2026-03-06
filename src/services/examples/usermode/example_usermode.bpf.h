@@ -7,8 +7,7 @@ extern "C" {
 #endif
 
 struct execve_event {
-  int pid;                  // 进程ID
-  char comm[TASK_COMM_LEN]; // 进程名
+  uint64_t count; // 系统调用次数
 };
 
 #ifdef __cplusplus

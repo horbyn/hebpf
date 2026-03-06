@@ -3,7 +3,7 @@
 // clang-format off
 #include <functional>
 #include <utility>
-#include "src/log/logger.h"
+#include <string>
 // clang-format on
 
 namespace hebpf {
@@ -13,7 +13,7 @@ template <typename T>
 class Callback;
 
 template <typename Ret, typename... Args>
-class Callback<Ret(Args...)> : public log::Loggable<log::Id::common> {
+class Callback<Ret(Args...)> {
 public:
   using FuncType = std::function<Ret(Args...)>;
 

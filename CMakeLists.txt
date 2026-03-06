@@ -171,6 +171,51 @@ else()
   message(FATAL_ERROR "elf library not found")
 endif()
 
+find_library(Z_LIBRARY z REQUIRED)
+if (Z_LIBRARY)
+  message(STATUS "Found z library: ${Z_LIBRARY}")
+else()
+  message(FATAL_ERROR "z library not found")
+endif()
+
+FetchContent_Declare(
+  prometheus-cpp
+  GIT_REPOSITORY https://github.com/jupp0r/prometheus-cpp.git
+  GIT_TAG v1.3.0
+  SOURCE_DIR   "${DEPS_DIR}/prometheus-cpp_src"
+  BINARY_DIR   "${DEPS_BUILD_DIR}/prometheus-cpp"
+  SUBBUILD_DIR "${DEPS_DIR}/prometheus-cpp_subbuild"
+)
+set(ENABLE_PULL ON CACHE BOOL "Enable prometheus-cpp pull library" FORCE)
+set(ENABLE_PUSH OFF CACHE BOOL "Disable prometheus-cpp push library" FORCE)
+set(ENABLE_TESTING OFF CACHE BOOL "Disable prometheus-cpp tests" FORCE)
+set(ENABLE_COMPRESSION OFF CACHE BOOL "Disable prometheus-cpp gzip compression" FORCE)
+FetchContent_MakeAvailable(prometheus-cpp)
+message(STATUS "prometheus-cpp 头文件目录: "
+  "${prometheus-cpp_SOURCE_DIR}/core/include, "
+  "${prometheus-cpp_SOURCE_DIR}/pull/include, "
+  "${prometheus-cpp_BINARY_DIR}/core/include, "
+  "${prometheus-cpp_BINARY_DIR}/pull/include"
+)
+include_directories(
+  ${prometheus-cpp_SOURCE_DIR}/core/include
+  ${prometheus-cpp_SOURCE_DIR}/pull/include
+  ${prometheus-cpp_BINARY_DIR}/core/include
+  ${prometheus-cpp_BINARY_DIR}/pull/include
+)
+
+FetchContent_Declare(
+  nlohmann_json
+  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_TAG v3.12.0
+  SOURCE_DIR   "${DEPS_DIR}/nlohmann_json_src"
+  BINARY_DIR   "${DEPS_BUILD_DIR}/nlohmann_json"
+  SUBBUILD_DIR "${DEPS_DIR}/nlohmann_json_subbuild"
+)
+FetchContent_MakeAvailable(nlohmann_json)
+message(STATUS "nlohmann_json 头文件目录: ${nlohmann_json_SOURCE_DIR}/include")
+include_directories(${nlohmann_json_SOURCE_DIR}/include)
+
 # 引入头文件
 include_directories(
   ${CMAKE_SOURCE_DIR}
@@ -233,6 +278,7 @@ target_link_libraries(${PROJECT_NAME}_core INTERFACE
   inotify
   io
   log
+  monitor
   signal
   thread
 )

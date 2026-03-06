@@ -16,7 +16,12 @@ namespace daemon {
 constexpr std::string_view CONFIGS_DEFAULT{HEBPF_PROJECT ".yaml"};
 constexpr std::string_view CONFIGS_LOGPATH{"logpath"};
 constexpr std::string_view CONFIGS_LOGLEVEL{"loglevel"};
+constexpr std::string_view CONFIGS_PROMETHEUS{"prometheus"};
+constexpr std::string_view CONFIGS_PROM_ENABLED{"enabled"};
+constexpr std::string_view CONFIGS_PROM_LISTEN{"listen"};
 constexpr std::string_view CONFIGS_EBPFSO{"ebpf"};
+
+constexpr std::string_view DEFAULT_PROM_LISTEN{"0.0.0.0:8080"};
 
 class Configs final : public log::Loggable<log::Id::daemon> {
 public:
@@ -29,6 +34,10 @@ public:
   std::string getLog() const;
   void setLogLevel(log::Level level);
   log::Level getLogLevel() const;
+  void setPrometheusEnabled(bool enabled);
+  bool getPrometheusEnabled() const;
+  void setPrometheusListen(std::string_view listen);
+  std::string getPrometheusListen() const;
   void setEbpf(const std::vector<std::string> &ebpf_so);
   std::vector<std::string> getEbpf() const;
 
@@ -38,6 +47,8 @@ public:
 private:
   std::string log_{log::LOGFILE_DEFAULT};
   log::Level loglevel_{log::Level::debug};
+  bool prometheus_enabled_{false};
+  std::string prometheus_listen_{DEFAULT_PROM_LISTEN};
   std::vector<std::string> ebpf_;
 };
 
@@ -52,6 +63,10 @@ struct convert<hebpf::daemon::Configs> {
     Node node{};
     node[hebpf::daemon::CONFIGS_LOGPATH] = conf.getLog();
     node[hebpf::daemon::CONFIGS_LOGLEVEL] = hebpf::enumName(conf.getLogLevel());
+    Node prometheus_node{};
+    prometheus_node[hebpf::daemon::CONFIGS_PROM_ENABLED] = conf.getPrometheusEnabled();
+    prometheus_node[hebpf::daemon::CONFIGS_PROM_LISTEN] = conf.getPrometheusListen();
+    node[hebpf::daemon::CONFIGS_PROMETHEUS] = prometheus_node;
     auto vec = conf.getEbpf();
     if (!vec.empty()) {
       node[hebpf::daemon::CONFIGS_EBPFSO] = conf.getEbpf();
@@ -68,6 +83,15 @@ struct convert<hebpf::daemon::Configs> {
           node[hebpf::daemon::CONFIGS_LOGLEVEL].as<std::string>());
       auto level = level_opt.has_value() ? level_opt.value() : hebpf::log::Level::info;
       conf.setLogLevel(level);
+    }
+    if (node[hebpf::daemon::CONFIGS_PROMETHEUS]) {
+      auto prom_node = node[hebpf::daemon::CONFIGS_PROMETHEUS];
+      if (prom_node[hebpf::daemon::CONFIGS_PROM_ENABLED]) {
+        conf.setPrometheusEnabled(prom_node[hebpf::daemon::CONFIGS_PROM_ENABLED].as<bool>());
+      }
+      if (prom_node[hebpf::daemon::CONFIGS_PROM_LISTEN]) {
+        conf.setPrometheusListen(prom_node[hebpf::daemon::CONFIGS_PROM_LISTEN].as<std::string>());
+      }
     }
     if (node[hebpf::daemon::CONFIGS_EBPFSO]) {
       conf.setEbpf(node[hebpf::daemon::CONFIGS_EBPFSO].as<std::vector<std::string>>());

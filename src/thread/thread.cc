@@ -1,6 +1,7 @@
 // clang-format off
 #include "thread.h"
 #include "src/common/exception.h"
+#include "src/log/logger.h"
 // clang-format on
 
 namespace hebpf {

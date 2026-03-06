@@ -4,6 +4,9 @@
 #include "loader.h"
 #include "src/common/assert.h"
 #include "src/common/exception.h"
+#include "src/data/metrics.h"
+#include "src/data/services/examples/usermode/execve_event.h"
+#include "src/services/examples/usermode/example_usermode.h"
 #include "src/thread/thread.h"
 // clang-format on
 
@@ -22,9 +25,16 @@ void Daemon::run() {
   }
 
   running_.store(true);
-  monitor_thread_ = std::make_unique<thread::Thread>();
-  monitor_thread_->setName(NAME_DAEMON);
-  monitor_thread_->start(std::bind(&Daemon::eventLoop, this));
+
+  if (prometheus_ != nullptr && status_queue_ != nullptr) {
+    productor_thread_ = std::make_unique<thread::Thread>();
+    productor_thread_->setName(NAME_DAEMON_PROD);
+    productor_thread_->start(std::bind(&Daemon::produceLoop, this));
+
+    consumer_thread_ = std::make_unique<thread::Thread>();
+    consumer_thread_->setName(NAME_DAEMON_COUS);
+    consumer_thread_->start(std::bind(&Daemon::consumeLoop, this));
+  }
 }
 
 /**
@@ -37,9 +47,6 @@ void Daemon::stop() {
   }
 
   running_.store(false);
-  if (monitor_thread_->joinable()) {
-    monitor_thread_->join();
-  }
 
   if (loader_ != nullptr) {
     const auto &all_ebpf = loader_->getAllService();
@@ -52,6 +59,16 @@ void Daemon::stop() {
     }
   }
   LOG(info, "eBPF programs stopped");
+
+  if (status_queue_ != nullptr) {
+    status_queue_->stop();
+  }
+  if (productor_thread_ != nullptr && productor_thread_->joinable()) {
+    productor_thread_->join();
+  }
+  if (consumer_thread_ != nullptr && consumer_thread_->joinable()) {
+    consumer_thread_->join();
+  }
 }
 
 /**
@@ -113,16 +130,92 @@ bool Daemon::setIoContext(std::weak_ptr<io::IoIf> io_ctx) {
 }
 
 /**
- * @brief Daemon 事件循环
+ * @brief 设置 prometheus 监控
+ *
+ * @param prometheus 监控对象
+ */
+void Daemon::setPrometheus(std::shared_ptr<monitor::MonitorIf> prometheus) {
+  prometheus_ = prometheus;
+}
+
+/**
+ * @brief 设置单生产者-单消费者队列
+ *
+ * @param queue
+ */
+void Daemon::setStatusQueue(std::shared_ptr<DaemonQueue> queue) { status_queue_ = queue; }
+
+/**
+ * @brief Daemon 生产者事件循环
  *
  */
-void Daemon::eventLoop() noexcept {
+void Daemon::produceLoop() noexcept {
+  constexpr int sleep_time_sec = 1;
+
   try {
-    // TODO: 与 eBPF 程序交互，内核态负责提交它们的状态信息
+    while (running_.load()) {
+      std::vector<std::string> services{};
+
+      {
+        std::lock_guard<std::mutex> lock{mutex_};
+        services = current_so_;
+      }
+
+      for (const auto &so_path : services) {
+        const auto *service = loader_->getService(so_path);
+        if (service != nullptr) {
+          auto status = service->getStatus();
+          if (!status.empty()) {
+            status_queue_->push(status);
+          }
+        }
+      } // end for()
+
+      std::this_thread::sleep_for(std::chrono::seconds(sleep_time_sec));
+    } // end while()
   } catch (const except::Exception &exc) {
-    LOG(error, "Daemon dropped: {}\nDaemon stackframe:\n{}", exc.what(), exc.stackFrame());
+    LOG(error, "Daemon productor dropped: {}\nDaemon stackframe:\n{}", exc.what(),
+        exc.stackFrame());
   } catch (const std::exception &exc) {
-    LOG(error, "Daemon dropped: {}", exc.what());
+    LOG(error, "Daemon productor dropped: {}", exc.what());
+  }
+}
+
+/**
+ * @brief Daemon 消费者事件循环
+ *
+ */
+void Daemon::consumeLoop() {
+  try {
+    while (running_.load()) {
+      Metrics metrics{};
+      auto status_opt = status_queue_->pop();
+      if (status_opt.has_value()) {
+        metrics = status_opt.value();
+      } else {
+        continue;
+      }
+
+      if (prometheus_ == nullptr) {
+        continue;
+      }
+
+      std::string service_name = metrics.service_;
+      const auto &vec = metrics.metrics_;
+      for (const auto &elem : vec) {
+        using namespace services::examples;
+
+        if (service_name == SERVICE_NAME_USERMODE) {
+          ExecveEvent event = elem;
+          prometheus_->incrementCounter(event.name_, event.labels_, event.value_);
+        }
+      } // end for()
+
+    } // end while()
+  } catch (const except::Exception &exc) {
+    LOG(error, "Daemon consumer dropped: {}\nDaemon stackframe:\n{}", exc.what(), exc.stackFrame());
+  } catch (const std::exception &exc) {
+    LOG(error, "Daemon consumer dropped: {}", exc.what());
   }
 }
 

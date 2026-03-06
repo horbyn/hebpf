@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include "nlohmann/json.hpp"
 #include "src/io/io_if.h"
 // clang-format on
 
@@ -26,6 +27,7 @@ public:
   virtual void destroy() = 0;
   virtual bool start(std::weak_ptr<io::IoIf> io_ctx = {}) = 0;
   virtual void stop() = 0;
+  virtual nlohmann::json getStatus() const = 0;
 };
 
 /**
@@ -51,6 +53,7 @@ protected:
   void detach() override;
   void destroy() override;
   bool start(std::weak_ptr<io::IoIf> io_ctx = {}) override;
+  nlohmann::json getStatus() const override;
 
   std::unique_ptr<T> skel_;
   std::weak_ptr<io::IoIf> io_ctx_;

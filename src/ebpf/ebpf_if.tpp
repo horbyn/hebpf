@@ -105,5 +105,15 @@ bool EbpfSkelIf<T>::start(std::weak_ptr<io::IoIf> io_ctx) {
   return true;
 }
 
+/**
+ * @brief 获取 eBPF 内核态程序收集的状态信息
+ *
+ * @return nlohmann::json JSON 对象
+ */
+template <typename T>
+nlohmann::json EbpfSkelIf<T>::getStatus() const {
+  return nlohmann::json();
+}
+
 } // namespace ebpf
 } // namespace hebpf

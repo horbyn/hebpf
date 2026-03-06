@@ -18,8 +18,11 @@ int handle_execve(struct trace_event_raw_sys_enter *ctx) {
     return 0;
   }
 
-  e->pid = bpf_get_current_pid_tgid() >> 32;
-  bpf_get_current_comm(&e->comm, sizeof(e->comm));
+  if (e->count == 0) {
+    e->count = 1;
+  } else {
+    ++e->count;
+  }
 
   bpf_ringbuf_submit(e, 0);
 

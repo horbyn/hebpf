@@ -5,13 +5,16 @@
 #include <fstream>
 #include <iostream>
 #include <thread>
+#include "nlohmann/json.hpp"
 #include "src/common/exception.h"
 #include "src/daemon/configs.hpp"
 #include "src/daemon/config_watcher.h"
 #include "src/daemon/daemon.h"
 #include "src/daemon/loader.h"
+#include "src/data/queue.h"
 #include "src/inotify/inotify.h"
 #include "src/io/io.h"
+#include "src/monitor/monitor.h"
 #include "src/signal/signal.h"
 #include "hebpf_version.h"
 // clang-format on
@@ -75,6 +78,18 @@ int main(int argc, char **argv) {
     daemon::Daemon daemon{std::move(loader)};
     if (!daemon.setIoContext(io_ctx)) {
       throw EXCEPT("Failed to setup io context");
+    }
+    if (configs.getPrometheusEnabled()) {
+      auto exporter = std::make_shared<monitor::Monitor>(configs.getPrometheusListen());
+      if (exporter == nullptr) {
+        throw EXCEPT("Failed to setup prometheus exporter");
+      }
+      daemon.setPrometheus(exporter);
+      auto queue = std::make_shared<Queue<nlohmann::json>>();
+      if (queue == nullptr) {
+        throw EXCEPT("Failed to setup status queue");
+      }
+      daemon.setStatusQueue(queue);
     }
     daemon.run();
 
