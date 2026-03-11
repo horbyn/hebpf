@@ -95,6 +95,15 @@ bool Queue<T>::empty() const {
 }
 
 /**
+ * @brief 启动队列
+ *
+ */
+template <typename T>
+void Queue<T>::start() {
+  stopped_.store(false);
+}
+
+/**
  * @brief 停止队列
  */
 template <typename T>
@@ -102,6 +111,18 @@ void Queue<T>::stop() {
   stopped_.store(true);
   cond_not_empty_.notify_all();
   cond_not_full_.notify_all();
+}
+
+/**
+ * @brief 判断队列满
+ *
+ * @return true 是的
+ * @return false 不是
+ */
+template <typename T>
+bool Queue<T>::full() const {
+  std::lock_guard<std::mutex> lock{mutex_};
+  return queue_.size() >= capacity_;
 }
 
 } // namespace hebpf

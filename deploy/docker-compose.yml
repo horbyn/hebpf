@@ -17,6 +17,7 @@ services:
       - hebpfnet
     ports:
       - "8080:8080"
+      - "58080:58080"
 
   prometheus:
     image: prom/prometheus:latest
@@ -29,6 +30,7 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+    restart: unless-stopped
     networks:
       - hebpfnet
     depends_on:
@@ -44,6 +46,7 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana:/etc/grafana/provisioning/datasources
+    restart: unless-stopped
     networks:
       - hebpfnet
     depends_on:

@@ -1,12 +1,12 @@
 // clang-format off
-#include "execve_event.h"
+#include "kernel_data.h"
 // clang-format on
 
 namespace hebpf {
 namespace services {
 namespace examples {
 
-void from_json(const nlohmann::json &json, ExecveEvent &event) {
+void from_json(const nlohmann::json &json, KernelData &event) {
   if (json.contains(JKEY_USERMODE_NAME)) {
     event.name_ = json.at(JKEY_USERMODE_NAME).get<std::string>();
   }
@@ -18,7 +18,7 @@ void from_json(const nlohmann::json &json, ExecveEvent &event) {
   }
 }
 
-void to_json(nlohmann::json &json, const ExecveEvent &event) {
+void to_json(nlohmann::json &json, const KernelData &event) {
   json = nlohmann::json{{JKEY_USERMODE_NAME, event.name_},
                         {JKEY_USERMODE_VALUE, event.value_},
                         {JKEY_USERMODE_LABEL, event.labels_}};

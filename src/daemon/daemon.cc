@@ -4,9 +4,6 @@
 #include "loader.h"
 #include "src/common/assert.h"
 #include "src/common/exception.h"
-#include "src/data/metrics.h"
-#include "src/data/services/examples/usermode/execve_event.h"
-#include "src/services/examples/usermode/example_usermode.h"
 #include "src/thread/thread.h"
 // clang-format on
 
@@ -26,14 +23,13 @@ void Daemon::run() {
 
   running_.store(true);
 
-  if (prometheus_ != nullptr && status_queue_ != nullptr) {
-    productor_thread_ = std::make_unique<thread::Thread>();
-    productor_thread_->setName(NAME_DAEMON_PROD);
-    productor_thread_->start(std::bind(&Daemon::produceLoop, this));
-
-    consumer_thread_ = std::make_unique<thread::Thread>();
-    consumer_thread_->setName(NAME_DAEMON_COUS);
-    consumer_thread_->start(std::bind(&Daemon::consumeLoop, this));
+  {
+    std::lock_guard<std::mutex> lock{queue_mutex_};
+    if (status_queue_ != nullptr) {
+      producer_thread_ = std::make_unique<thread::Thread>();
+      producer_thread_->setName(NAME_DAEMON_PROD);
+      producer_thread_->start(std::bind(&Daemon::produceLoop, this));
+    }
   }
 }
 
@@ -60,25 +56,29 @@ void Daemon::stop() {
   }
   LOG(info, "eBPF programs stopped");
 
-  if (status_queue_ != nullptr) {
-    status_queue_->stop();
-  }
-  if (productor_thread_ != nullptr && productor_thread_->joinable()) {
-    productor_thread_->join();
-  }
-  if (consumer_thread_ != nullptr && consumer_thread_->joinable()) {
-    consumer_thread_->join();
+  {
+    std::lock_guard<std::mutex> lock{queue_mutex_};
+    if (producer_thread_ != nullptr && producer_thread_->joinable()) {
+      producer_thread_->join();
+      producer_thread_.reset();
+    }
+    if (status_queue_ != nullptr) {
+      status_queue_->stop();
+      status_queue_.reset();
+    }
   }
 }
 
 /**
- * @brief 与配置文件 watcher 交互
+ * @brief 更新配置文件
  *
  * @param config 配置文件对象
  */
-void Daemon::OnConfigChanged(const Configs &config) {
+void Daemon::update(const Configs &config) {
   ASSERT(loader_ != nullptr);
   auto new_so = config.getEbpf();
+
+  std::lock_guard<std::mutex> lock{mutex_};
 
   // 需要卸载的（current 中存在但 new 中不存在）
   for (const auto &so : current_so_) {
@@ -130,20 +130,11 @@ bool Daemon::setIoContext(std::weak_ptr<io::IoIf> io_ctx) {
 }
 
 /**
- * @brief 设置 prometheus 监控
- *
- * @param prometheus 监控对象
- */
-void Daemon::setPrometheus(std::shared_ptr<monitor::MonitorIf> prometheus) {
-  prometheus_ = prometheus;
-}
-
-/**
  * @brief 设置单生产者-单消费者队列
  *
  * @param queue
  */
-void Daemon::setStatusQueue(std::shared_ptr<DaemonQueue> queue) { status_queue_ = queue; }
+void Daemon::setStatusQueue(std::shared_ptr<QueueDaemonMonitor> queue) { status_queue_ = queue; }
 
 /**
  * @brief Daemon 生产者事件循环
@@ -166,7 +157,14 @@ void Daemon::produceLoop() noexcept {
         if (service != nullptr) {
           auto status = service->getStatus();
           if (!status.empty()) {
-            status_queue_->push(status);
+            std::shared_ptr<QueueDaemonMonitor> queue{};
+            {
+              std::lock_guard<std::mutex> lock{queue_mutex_};
+              queue = status_queue_;
+            }
+            if (queue != nullptr && !queue->full()) {
+              queue->push(status);
+            }
           }
         }
       } // end for()
@@ -178,44 +176,6 @@ void Daemon::produceLoop() noexcept {
         exc.stackFrame());
   } catch (const std::exception &exc) {
     LOG(error, "Daemon productor dropped: {}", exc.what());
-  }
-}
-
-/**
- * @brief Daemon 消费者事件循环
- *
- */
-void Daemon::consumeLoop() {
-  try {
-    while (running_.load()) {
-      Metrics metrics{};
-      auto status_opt = status_queue_->pop();
-      if (status_opt.has_value()) {
-        metrics = status_opt.value();
-      } else {
-        continue;
-      }
-
-      if (prometheus_ == nullptr) {
-        continue;
-      }
-
-      std::string service_name = metrics.service_;
-      const auto &vec = metrics.metrics_;
-      for (const auto &elem : vec) {
-        using namespace services::examples;
-
-        if (service_name == SERVICE_NAME_USERMODE) {
-          ExecveEvent event = elem;
-          prometheus_->incrementCounter(event.name_, event.labels_, event.value_);
-        }
-      } // end for()
-
-    } // end while()
-  } catch (const except::Exception &exc) {
-    LOG(error, "Daemon consumer dropped: {}\nDaemon stackframe:\n{}", exc.what(), exc.stackFrame());
-  } catch (const std::exception &exc) {
-    LOG(error, "Daemon consumer dropped: {}", exc.what());
   }
 }
 

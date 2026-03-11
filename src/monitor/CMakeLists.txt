@@ -5,4 +5,5 @@ add_library(monitor
 target_link_libraries(monitor
   PRIVATE
   prometheus-cpp::pull
+  data
 )

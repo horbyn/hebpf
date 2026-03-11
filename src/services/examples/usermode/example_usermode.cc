@@ -2,7 +2,7 @@
 #include "example_usermode.h"
 #include "src/common/exception.h"
 #include "src/data/metrics.h"
-#include "src/data/services/examples/usermode/execve_event.h"
+#include "src/data/kernel_data.h"
 #include "src/ebpf/ringbuffer.h"
 #include "src/fd/fd.h"
 // clang-format on
@@ -82,11 +82,11 @@ nlohmann::json ExampleUsermodeEbpf::getStatus() const {
   metrics.service_ = getName();
 
   if (count_ > 0) {
-    ExecveEvent execve_event{};
-    execve_event.name_ = METRIC_NAME;
-    execve_event.value_ = count_;
-    execve_event.labels_.emplace(std::string{JKEY_METRICS_SERVICE}, getName());
-    metrics.metrics_.push_back(execve_event);
+    KernelData kernel_data{};
+    kernel_data.name_ = METRIC_NAME;
+    kernel_data.value_ = count_;
+    kernel_data.labels_.emplace(std::string{JKEY_METRICS_SERVICE}, getName());
+    metrics.metrics_.push_back(kernel_data);
   }
   return metrics;
 }

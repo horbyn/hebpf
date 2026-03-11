@@ -5,5 +5,4 @@ add_library(daemon
 target_link_libraries(daemon
   PRIVATE
   yaml-cpp::yaml-cpp
-  data_usermode
 )

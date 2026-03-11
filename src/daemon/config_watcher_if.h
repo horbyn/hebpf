@@ -14,9 +14,6 @@ using ConfigChangeCallback = common::Callback<void(const Configs &)>;
 class ConfigWatcherIf {
 public:
   virtual ~ConfigWatcherIf() = default;
-
-  virtual void registerConfigChangeEvents(std::string_view config,
-                                          ConfigChangeCallback callback) = 0;
 };
 
 } // namespace daemon

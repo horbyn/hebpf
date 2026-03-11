@@ -14,7 +14,6 @@ public:
 
   virtual void run() = 0;
   virtual void stop() = 0;
-  virtual void OnConfigChanged(const Configs &config) = 0;
 };
 
 } // namespace daemon

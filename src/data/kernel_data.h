@@ -16,10 +16,10 @@ constexpr std::string_view JKEY_USERMODE_NAME{"name"};
 constexpr std::string_view JKEY_USERMODE_VALUE{"value"};
 constexpr std::string_view JKEY_USERMODE_LABEL{"labels"};
 
-class ExecveEvent final {
+class KernelData final {
 public:
-  friend void from_json(const nlohmann::json &json, ExecveEvent &event);
-  friend void to_json(nlohmann::json &json, const ExecveEvent &event);
+  friend void from_json(const nlohmann::json &json, KernelData &event);
+  friend void to_json(nlohmann::json &json, const KernelData &event);
 
   std::string name_;
   double value_;

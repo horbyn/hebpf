@@ -29,7 +29,9 @@ public:
   std::optional<T> pop() override;
   std::optional<T> tryPop() override;
   bool empty() const override;
+  void start() override;
   void stop() override;
+  bool full() const override;
 
 private:
   mutable std::mutex mutex_;
