@@ -11,8 +11,8 @@ namespace hebpf {
 namespace monitor {
 
 MonitorSubscriber::MonitorSubscriber(std::string_view bind_address,
-                                     std::shared_ptr<MonitorFactoryIf> factory)
-    : bind_address_(bind_address), factory_(factory) {}
+                                     std::unique_ptr<MonitorFactoryIf> factory)
+    : bind_address_{bind_address}, factory_{std::move(factory)} {}
 
 /**
  * @brief 更新配置

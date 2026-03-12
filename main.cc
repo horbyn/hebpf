@@ -6,6 +6,7 @@
 #include <iostream>
 #include <thread>
 #include "nlohmann/json.hpp"
+#include "src/cmdline/cmdline.h"
 #include "src/common/exception.h"
 #include "src/daemon/configs.hpp"
 #include "src/daemon/config_watcher.h"
@@ -23,79 +24,79 @@
 
 /**
  * @brief 获取空配置
- *
- * @param argc 命令行参数个数
- * @param argv 命令行选项
- * @return true 成功
- * @return false 失败
  */
-bool generateEmptyConfigFile(int argc, char **argv) {
+void generateEmptyConfigFile() {
   using namespace hebpf;
-  if (argc > 1 && std::string(argv[1]) == "--get-conf") {
-    GLOBAL_LOG(info, "Generate empty config file");
 
-    // 创建默认配置对象
-    daemon::Configs config{};
+  daemon::Configs config{};
 
-    // 使用 YAML::Emitter 构造带注释的 YAML 字符串
-    YAML::Emitter out{};
-    out << YAML::BeginMap;
+  YAML::Emitter out{};
+  out << YAML::BeginMap;
 
-    out << YAML::Comment("以下是静态配置，仅在初始化时执行，不支持热更新");
-    out << YAML::Key << daemon::CONFIGS_LOGPATH << YAML::Value << config.getLog();
-    out << YAML::Key << daemon::CONFIGS_LOGLEVEL << YAML::Value
-        << hebpf::enumName(config.getLogLevel());
+  out << YAML::Key << daemon::CONFIGS_PROMETHEUS << YAML::Value << YAML::BeginMap;
+  out << YAML::Key << daemon::CONFIGS_PROM_ENABLED << YAML::Value << config.getPrometheusEnabled();
+  out << YAML::Key << daemon::CONFIGS_PROM_LISTEN << YAML::Value << config.getPrometheusListen();
+  out << YAML::EndMap;
 
-    out << YAML::Newline;
+  out << YAML::Newline;
+  out << YAML::Comment("以下是 eBPF 程序配置");
+  out << YAML::Newline;
 
-    out << YAML::Comment("以下是支持热更新的配置");
-    out << YAML::Key << daemon::CONFIGS_PROMETHEUS << YAML::Value << YAML::BeginMap;
-    out << YAML::Key << daemon::CONFIGS_PROM_ENABLED << YAML::Value
-        << config.getPrometheusEnabled();
-    out << YAML::Key << daemon::CONFIGS_PROM_LISTEN << YAML::Value << config.getPrometheusListen();
-    out << YAML::EndMap;
+  out << YAML::Comment("ebpf:");
+  out << YAML::Newline;
 
-    auto ebpf_vec = config.getEbpf();
-    if (!ebpf_vec.empty()) {
-      out << YAML::Key << daemon::CONFIGS_EBPFSO << YAML::Value << ebpf_vec;
-    }
-    out << YAML::EndMap;
+  out << YAML::Comment(" - /path/to/ebpf1.so");
+  out << YAML::Newline;
 
-    auto configfile = std::string{daemon::CONFIGS_DEFAULT};
-    std::ofstream fout{configfile};
-    if (!fout) {
-      GLOBAL_LOG(error, "Cannot create config file");
-      return false;
-    }
-    fout << out.c_str(); // 输出 YAML 字符串
-    fout.close();
+  out << YAML::Comment(" - /path/to/ebpf2.so");
+  out << YAML::Newline;
 
-    GLOBAL_LOG(info, "Config file generated: {}", configfile);
-    return true;
+  auto ebpf_vec = config.getEbpf();
+  if (!ebpf_vec.empty()) {
+    out << YAML::Key << daemon::CONFIGS_EBPFSO << YAML::Value << ebpf_vec;
   }
-  return false;
+  out << YAML::EndMap;
+
+  auto configfile = std::string{daemon::CONFIGS_DEFAULT};
+  std::ofstream fout{configfile};
+  if (!fout) {
+    std::cerr << "Cannot create config file\n";
+    return;
+  }
+  fout << out.c_str();
+  fout.close();
+
+  std::cout << "Configuration " << daemon::CONFIGS_DEFAULT << " generated in current directory\n";
 }
 
 int main(int argc, char **argv) {
   using namespace hebpf;
 
   try {
-    // 留个后门用来生成空的配置文件
-    if (generateEmptyConfigFile(argc, argv)) {
-      GLOBAL_LOG(info, "Configuration {} generated in current directory", daemon::CONFIGS_DEFAULT);
-      return EXIT_SUCCESS;
-    }
 
     auto &signal = hebpf::signal::Signal::instance();
     signal.registerSignal(SIGINT, signal::Signal::commonSignalHandler);
     signal.registerSignal(SIGTERM, signal::Signal::commonSignalHandler);
     signal.registerSignal(SIGSEGV, signal::Signal::crashSignalHandler);
 
-    daemon::Configs configs{daemon::CONFIGS_DEFAULT};
+    cmdline::Cmdline cmd_parser{};
+    auto [cmd_config, should_continue] = cmd_parser.parse(argc, argv);
+    if (!should_continue) {
+      return EXIT_FAILURE;
+    }
+    if (cmd_config.help_) {
+      return EXIT_SUCCESS;
+    }
+
+    if (cmd_config.gen_empty_) {
+      generateEmptyConfigFile();
+      return EXIT_SUCCESS;
+    }
+
     log::LogConfig log_conf{};
     log_conf.setStdout(true);
-    log_conf.setLogFile(configs.getLog());
-    log_conf.setLevel(configs.getLogLevel());
+    log_conf.setLogFile(cmd_config.log_);
+    log_conf.setLevel(cmd_config.loglevel_);
     GLOBAL_LOG(info, "Launch " HEBPF_PROJECT " v" HEBPF_VERSION);
 
     auto io_ctx = std::make_shared<io::Io>();
@@ -111,10 +112,11 @@ int main(int argc, char **argv) {
     }
     watcher->attach(daemon);
 
+    daemon::Configs configs = cmd_config.config_;
     std::shared_ptr<monitor::MonitorSubscriber> monitor{};
     if (configs.getPrometheusEnabled()) {
       monitor = std::make_shared<monitor::MonitorSubscriber>(
-          configs.getPrometheusListen(), std::make_shared<monitor::MonitorFactory>());
+          configs.getPrometheusListen(), std::make_unique<monitor::MonitorFactory>());
 
       auto queue = std::make_shared<Queue<nlohmann::json>>();
       if (queue == nullptr) {

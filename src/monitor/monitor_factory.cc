@@ -7,9 +7,28 @@
 namespace hebpf {
 namespace monitor {
 
+/**
+ * @brief 创建 Monitor 对象
+ *
+ * @param bind_address 监听地址
+ * @return std::shared_ptr<MonitorIf> 对象
+ */
 std::shared_ptr<MonitorIf> MonitorFactory::create(std::string_view bind_address) {
   ASSERT(!bind_address.empty());
-  return std::make_shared<Monitor>(bind_address);
+
+  auto bind_address_str = std::string{bind_address};
+  std::lock_guard<std::mutex> lock{mutex_};
+  auto iter = cache_.find(bind_address_str);
+  if (iter != cache_.end()) {
+    auto shared = iter->second.lock();
+    if (shared) {
+      return shared;
+    }
+  }
+
+  auto monitor = std::make_shared<Monitor>(bind_address);
+  cache_[bind_address_str] = monitor;
+  return monitor;
 }
 
 } // namespace monitor

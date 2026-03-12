@@ -216,6 +216,18 @@ FetchContent_MakeAvailable(nlohmann_json)
 message(STATUS "nlohmann_json 头文件目录: ${nlohmann_json_SOURCE_DIR}/include")
 include_directories(${nlohmann_json_SOURCE_DIR}/include)
 
+FetchContent_Declare(
+  cli11
+  GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
+  GIT_TAG v2.6.2
+  SOURCE_DIR   "${DEPS_DIR}/cli11_src"
+  BINARY_DIR   "${DEPS_BUILD_DIR}/cli11"
+  SUBBUILD_DIR "${DEPS_DIR}/cli11_subbuild"
+)
+FetchContent_MakeAvailable(cli11)
+message(STATUS "cli11 头文件目录: ${cli11_SOURCE_DIR}/include")
+include_directories(${cli11_SOURCE_DIR}/include)
+
 # 引入头文件
 include_directories(
   ${CMAKE_SOURCE_DIR}
@@ -271,6 +283,7 @@ add_subdirectory(src)
 
 add_library(${PROJECT_NAME}_core INTERFACE)
 target_link_libraries(${PROJECT_NAME}_core INTERFACE
+  cmdline
   common
   daemon
   ebpf

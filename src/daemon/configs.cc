@@ -33,34 +33,6 @@ Configs Configs::loadFromConfig(std::string_view filepath) {
 }
 
 /**
- * @brief 设置日志文件路径
- *
- * @param logpath 日志文件路径
- */
-void Configs::setLog(std::string_view logpath) { log_ = std::string{logpath}; }
-
-/**
- * @brief 获取日志文件路径
- *
- * @return std::string 日志文件路径
- */
-std::string Configs::getLog() const { return log_; }
-
-/**
- * @brief 设置日志级别
- *
- * @param level 日志级别
- */
-void Configs::setLogLevel(log::Level level) { loglevel_ = level; }
-
-/**
- * @brief 获取日志级别
- *
- * @return log::Level 日志级别
- */
-log::Level Configs::getLogLevel() const { return loglevel_; }
-
-/**
  * @brief 设置 prometheus 启用还是停用
  *
  * @param enabled 启用 true；停用 false
@@ -106,8 +78,7 @@ void Configs::setEbpf(const std::vector<std::string> &ebpf_so) { ebpf_ = ebpf_so
 std::vector<std::string> Configs::getEbpf() const { return ebpf_; }
 
 bool Configs::operator==(const Configs &other) const {
-  return log_ == other.log_ && loglevel_ == other.loglevel_ &&
-         prometheus_enabled_ == other.prometheus_enabled_ &&
+  return prometheus_enabled_ == other.prometheus_enabled_ &&
          prometheus_listen_ == other.prometheus_listen_ && ebpf_ == other.ebpf_;
 }
 

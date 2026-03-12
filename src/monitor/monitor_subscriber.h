@@ -20,7 +20,7 @@ constexpr std::string_view NAME_MONITOR_COUS{"monitor-cous"};
 class MonitorSubscriber : public MonitorSubscriberIf, public log::Loggable<log::Id::monitor> {
 public:
   explicit MonitorSubscriber(std::string_view bind_address,
-                             std::shared_ptr<MonitorFactoryIf> factory);
+                             std::unique_ptr<MonitorFactoryIf> factory);
   void update(const daemon::Configs &config) override;
 
   void run();
@@ -36,7 +36,7 @@ private:
   std::shared_ptr<MonitorIf> monitor_;
   std::shared_ptr<QueueDaemonMonitor> queue_;
   std::unique_ptr<thread::ThreadIf> consumer_thread_;
-  std::shared_ptr<MonitorFactoryIf> factory_;
+  std::unique_ptr<MonitorFactoryIf> factory_;
 };
 
 } // namespace monitor

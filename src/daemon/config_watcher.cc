@@ -45,8 +45,11 @@ void ConfigWatcher::detach(std::shared_ptr<subscribe::SubscriberIf> subscriber) 
   subscribers_.erase(
       std::remove_if(subscribers_.begin(), subscribers_.end(),
                      [&subscriber](const std::weak_ptr<subscribe::SubscriberIf> &weak_ptr) {
+                       if (weak_ptr.expired()) {
+                         return true;
+                       }
                        auto shared_ptr = weak_ptr.lock();
-                       return shared_ptr != nullptr && shared_ptr == subscriber;
+                       return shared_ptr == subscriber;
                      }),
       subscribers_.end());
 }

@@ -37,11 +37,12 @@ enum class Id : std::uint8_t {
   io,
   prometheus,
   monitor,
+  cmdline,
   MAXSIZE
 };
 enum class Level : std::uint8_t { trace, debug, info, warn, error, critical, off, MAXSIZE };
 
-constexpr Level LOGLEVEL_DEFAULT{Level::trace};
+constexpr Level LOGLEVEL_DEFAULT{Level::info};
 constexpr std::string_view LOGFILE_DEFAULT{"/var/run/log/" HEBPF_PROJECT ".log"};
 
 class LogConfig {
