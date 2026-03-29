@@ -4,3 +4,4 @@ cmake
 deps
 .gdbinit
 *.yaml
+*.json

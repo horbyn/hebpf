@@ -28,4 +28,5 @@ macro(ebpf_copile source)
   )
 endmacro()
 
+add_subdirectory(acl)
 add_subdirectory(examples)

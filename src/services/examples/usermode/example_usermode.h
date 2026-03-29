@@ -20,7 +20,7 @@ constexpr size_t MAX_EVENTS = 10240;
 class ExampleUsermodeEbpf : public ebpf::EbpfSkelIf<struct example_usermode_bpf>,
                             public log::Loggable<log::Id::ebpf> {
 public:
-  explicit ExampleUsermodeEbpf(std::unique_ptr<example_usermode_bpf> skel = nullptr);
+  explicit ExampleUsermodeEbpf(std::unique_ptr<example_usermode_bpf> skel = {});
 
   std::string getName() const override;
   void load() override;

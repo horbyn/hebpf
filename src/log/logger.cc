@@ -24,7 +24,6 @@ static std::atomic<bool> g_stdout{false};
  * @param level 日志等级
  */
 void LogConfig::setLevel(Level level) {
-  level_ = level;
   {
     std::lock_guard<std::mutex> lock(g_mutex);
     g_level = level;
@@ -48,7 +47,7 @@ void LogConfig::setLevel(std::string_view level_str) {
  *
  * @return Level 日志等级
  */
-Level LogConfig::getLevel() const noexcept { return level_; }
+Level LogConfig::getLevel() const noexcept { return Logger::getLevel(); }
 
 /**
  * @brief 设置日志文件路径

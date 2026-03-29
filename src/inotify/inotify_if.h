@@ -16,8 +16,8 @@ class InotifyIf {
 public:
   virtual ~InotifyIf() = default;
 
-  virtual bool addWatch(std::string_view path, uint32_t mask) = 0;
-  virtual bool removeWatch(std::string_view path) = 0;
+  virtual int addWatch(std::string_view path, uint32_t mask) = 0;
+  virtual bool removeWatch(int watch_fd) = 0;
   virtual void setInotifyCb(InotifyCb cb) = 0;
   virtual void processInotify(const char *buffer, size_t length) = 0;
   virtual int getFd() const noexcept = 0;

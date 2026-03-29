@@ -3,6 +3,7 @@
 // clang-format off
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 #include "yaml-cpp/yaml.h"
 #include "src/common/enum_name.hpp"
@@ -18,11 +19,34 @@ constexpr std::string_view CONFIGS_PROMETHEUS{"prometheus"};
 constexpr std::string_view CONFIGS_PROM_ENABLED{"enabled"};
 constexpr std::string_view CONFIGS_PROM_LISTEN{"listen"};
 constexpr std::string_view CONFIGS_EBPFSO{"ebpf"};
+constexpr std::string_view CONFIGS_EBPF_LIB{"lib"};
+constexpr std::string_view CONFIGS_EBPF_CONFIG{"config"};
 
 constexpr std::string_view DEFAULT_PROM_LISTEN{"0.0.0.0:8080"};
 
+class ConfigEbpf final : public log::Loggable<log::Id::daemon> {
+public:
+  ConfigEbpf() = default;
+  ConfigEbpf(std::string_view lib, std::string_view config);
+
+  void setLib(std::string_view lib);
+  std::string getLib() const;
+
+  void setConfig(std::string_view config);
+  std::string getConfig() const;
+
+  bool operator==(const ConfigEbpf &other) const;
+  bool operator!=(const ConfigEbpf &other) const;
+
+private:
+  std::string lib_;
+  std::string config_;
+};
+
 class Configs final : public log::Loggable<log::Id::daemon> {
 public:
+  using EbpfMap = std::map<std::string, ConfigEbpf>;
+
   Configs() = default;
   Configs(std::string_view configs_path);
 
@@ -34,8 +58,11 @@ public:
   void setPrometheusListen(std::string_view listen);
   std::string getPrometheusListen() const;
 
-  void setEbpf(const std::vector<std::string> &ebpf_so);
-  std::vector<std::string> getEbpf() const;
+  void setEbpfs(const EbpfMap &ebpf_so);
+  EbpfMap getEbpfs() const;
+
+  void appendEbpf(std::string_view name, std::string_view lib, std::string_view config);
+  void deleteEbpf(std::string_view name);
 
   bool operator==(const Configs &other) const;
   bool operator!=(const Configs &other) const;
@@ -43,13 +70,33 @@ public:
 private:
   bool prometheus_enabled_{false};
   std::string prometheus_listen_{DEFAULT_PROM_LISTEN};
-  std::vector<std::string> ebpf_;
+  EbpfMap ebpfs_;
 };
 
 } // namespace daemon
 } // namespace hebpf
 
 namespace YAML {
+
+template <>
+struct convert<hebpf::daemon::ConfigEbpf> {
+  static Node encode(const hebpf::daemon::ConfigEbpf &conf) {
+    Node node{};
+    node[hebpf::daemon::CONFIGS_EBPF_LIB] = conf.getLib();
+    node[hebpf::daemon::CONFIGS_EBPF_CONFIG] = conf.getConfig();
+    return node;
+  }
+
+  static bool decode(const Node &node, hebpf::daemon::ConfigEbpf &conf) {
+    if (node[hebpf::daemon::CONFIGS_EBPF_LIB]) {
+      conf.setLib(node[hebpf::daemon::CONFIGS_EBPF_LIB].as<std::string>());
+    }
+    if (node[hebpf::daemon::CONFIGS_EBPF_CONFIG]) {
+      conf.setConfig(node[hebpf::daemon::CONFIGS_EBPF_CONFIG].as<std::string>());
+    }
+    return true;
+  }
+};
 
 template <>
 struct convert<hebpf::daemon::Configs> {
@@ -59,9 +106,9 @@ struct convert<hebpf::daemon::Configs> {
     prometheus_node[hebpf::daemon::CONFIGS_PROM_ENABLED] = conf.getPrometheusEnabled();
     prometheus_node[hebpf::daemon::CONFIGS_PROM_LISTEN] = conf.getPrometheusListen();
     node[hebpf::daemon::CONFIGS_PROMETHEUS] = prometheus_node;
-    auto vec = conf.getEbpf();
-    if (!vec.empty()) {
-      node[hebpf::daemon::CONFIGS_EBPFSO] = conf.getEbpf();
+    auto vector = conf.getEbpfs();
+    if (!vector.empty()) {
+      node[hebpf::daemon::CONFIGS_EBPFSO] = vector;
     }
     return node;
   }
@@ -77,7 +124,7 @@ struct convert<hebpf::daemon::Configs> {
       }
     }
     if (node[hebpf::daemon::CONFIGS_EBPFSO]) {
-      conf.setEbpf(node[hebpf::daemon::CONFIGS_EBPFSO].as<std::vector<std::string>>());
+      conf.setEbpfs(node[hebpf::daemon::CONFIGS_EBPFSO].as<hebpf::daemon::Configs::EbpfMap>());
     }
     return true;
   }

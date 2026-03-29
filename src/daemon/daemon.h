@@ -8,7 +8,6 @@
 #include <thread>
 #include "daemon_if.h"
 #include "loader_if.h"
-#include "src/io/io_if.h"
 #include "src/log/logger.h"
 #include "src/monitor/monitor_if.h"
 #include "src/data/queue_if.h"
@@ -31,16 +30,17 @@ public:
   void stop() override;
   void update(const Configs &config) override;
 
-  bool setIoContext(std::weak_ptr<io::IoIf> io_ctx);
   void setStatusQueue(std::shared_ptr<QueueDaemonMonitor> queue);
 
 private:
   void produceLoop() noexcept;
+  void loadEbpf(std::string_view so_path, std::string_view config_path);
+  void unloadEbpf(std::string_view so_path);
 
   std::unique_ptr<LoaderIf> loader_;
   std::atomic<bool> running_{false};
-  std::vector<std::string> current_so_;
-  std::weak_ptr<io::IoIf> io_ctx_;
+  Configs::EbpfMap current_ebpf_;
+
   std::mutex mutex_;
   std::shared_ptr<QueueDaemonMonitor> status_queue_;
   std::mutex queue_mutex_;

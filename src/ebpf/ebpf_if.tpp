@@ -85,7 +85,7 @@ template <typename T>
 void EbpfSkelIf<T>::destroy() {
   ASSERT(skel_ != nullptr);
   skel_->destroy(skel_.get());
-  skel_.release();
+  skel_.release(); // libbpf 的 skeleton 在 destroy()（上一行代码）会释放内存
 }
 
 /**
@@ -102,7 +102,7 @@ bool EbpfSkelIf<T>::start(std::weak_ptr<io::IoIf> io_ctx) {
   if (io_ctx.lock() != nullptr) {
     io_ctx_ = io_ctx;
   }
-  return true;
+  return static_cast<bool>(io_ctx_.lock());
 }
 
 /**
@@ -113,6 +113,17 @@ bool EbpfSkelIf<T>::start(std::weak_ptr<io::IoIf> io_ctx) {
 template <typename T>
 nlohmann::json EbpfSkelIf<T>::getStatus() const {
   return nlohmann::json();
+}
+
+/**
+ * @brief 修改 eBPF 程序配置
+ *
+ * @param config 配置对象
+ */
+template <typename T>
+void EbpfSkelIf<T>::onConfigUpdate(const nlohmann::json &config) {
+  (void)config;
+  return;
 }
 
 } // namespace ebpf

@@ -7,13 +7,14 @@
 #include <thread>
 #include "nlohmann/json.hpp"
 #include "src/cmdline/cmdline.h"
+#include "src/common/enum_name.hpp"
 #include "src/common/exception.h"
 #include "src/daemon/configs.hpp"
 #include "src/daemon/config_watcher.h"
 #include "src/daemon/daemon.h"
 #include "src/daemon/loader.h"
 #include "src/data/queue.h"
-#include "src/inotify/inotify.h"
+#include "src/inotify/inotify_manager.h"
 #include "src/io/io.h"
 #include "src/monitor/monitor.h"
 #include "src/monitor/monitor_factory.h"
@@ -45,15 +46,25 @@ void generateEmptyConfigFile() {
   out << YAML::Comment("ebpf:");
   out << YAML::Newline;
 
-  out << YAML::Comment(" - /path/to/ebpf1.so");
+  out << YAML::Comment(" ebpf1:");
+  out << YAML::Newline;
+  out << YAML::Comment("   lib: /path/to/ebpf1.so");
+  out << YAML::Newline;
+  out << YAML::Comment("   config: /path/to/ebpf1.json");
   out << YAML::Newline;
 
-  out << YAML::Comment(" - /path/to/ebpf2.so");
+  out << YAML::Comment(" ebpf2:");
+  out << YAML::Newline;
+  out << YAML::Comment("   lib: /path/to/ebpf2.so");
+  out << YAML::Newline;
+  out << YAML::Comment("   config: /path/to/ebpf2.json");
   out << YAML::Newline;
 
-  auto ebpf_vec = config.getEbpf();
+  auto ebpf_vec = config.getEbpfs();
   if (!ebpf_vec.empty()) {
-    out << YAML::Key << daemon::CONFIGS_EBPFSO << YAML::Value << ebpf_vec;
+    YAML::Node node{};
+    node = ebpf_vec;
+    out << YAML::Key << daemon::CONFIGS_EBPFSO << YAML::Value << node;
   }
   out << YAML::EndMap;
 
@@ -82,6 +93,7 @@ int main(int argc, char **argv) {
     cmdline::Cmdline cmd_parser{};
     auto [cmd_config, should_continue] = cmd_parser.parse(argc, argv);
     if (!should_continue) {
+      std::cerr << "[error] Configuration parsing failed\n";
       return EXIT_FAILURE;
     }
     if (cmd_config.help_) {
@@ -98,37 +110,41 @@ int main(int argc, char **argv) {
     log_conf.setLogFile(cmd_config.log_);
     log_conf.setLevel(cmd_config.loglevel_);
     GLOBAL_LOG(info, "Launch " HEBPF_PROJECT " v" HEBPF_VERSION);
+    GLOBAL_LOG(info, "Log level: {}", enumName(log_conf.getLevel()));
 
     auto io_ctx = std::make_shared<io::Io>();
+    auto inotify = std::make_shared<inotify::InotifyManager>();
+    inotify->initManager(io_ctx);
+
     auto loader = std::make_unique<daemon::Loader>();
-    auto daemon = std::make_shared<daemon::Daemon>(std::move(loader));
-    if (!daemon->setIoContext(io_ctx)) {
+    if (!loader->setIoContext(io_ctx)) {
       throw EXCEPT("Failed to setup io context");
+    }
+    if (!loader->setInotifyManager(inotify)) {
+      throw EXCEPT("Failed to setup inotify manager");
     }
 
-    auto watcher = std::make_shared<daemon::ConfigWatcher>(std::make_unique<inotify::Inotify>());
-    if (!watcher->setIoContext(io_ctx)) {
-      throw EXCEPT("Failed to setup io context");
-    }
+    auto daemon = std::make_shared<daemon::Daemon>(std::move(loader));
+    auto watcher = std::make_shared<daemon::ConfigWatcher>(inotify);
     watcher->attach(daemon);
+
+    auto queue = std::make_shared<Queue<nlohmann::json>>();
+    if (queue == nullptr) {
+      throw EXCEPT("Failed to setup status queue");
+    }
 
     daemon::Configs configs = cmd_config.config_;
     std::shared_ptr<monitor::MonitorSubscriber> monitor{};
     if (configs.getPrometheusEnabled()) {
       monitor = std::make_shared<monitor::MonitorSubscriber>(
           configs.getPrometheusListen(), std::make_unique<monitor::MonitorFactory>());
-
-      auto queue = std::make_shared<Queue<nlohmann::json>>();
-      if (queue == nullptr) {
-        throw EXCEPT("Failed to setup status queue");
-      }
-      daemon->setStatusQueue(queue);
       monitor->setQueue(queue);
       watcher->attach(monitor);
       monitor->run();
     }
 
     watcher->startWatching(daemon::CONFIGS_DEFAULT);
+    daemon->setStatusQueue(queue);
     daemon->run();
 
     // 主循环
@@ -136,6 +152,7 @@ int main(int argc, char **argv) {
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
+    inotify->destroyManager();
     daemon->stop();
     if (monitor != nullptr) {
       monitor->stop();

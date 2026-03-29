@@ -6,6 +6,43 @@
 namespace hebpf {
 namespace daemon {
 
+ConfigEbpf::ConfigEbpf(std::string_view lib, std::string_view config)
+    : lib_{std::string{lib}}, config_{std::string{config}} {}
+
+/**
+ * @brief 设置 eBPF 配置动态库路径
+ *
+ * @param lib 动态库路径
+ */
+void ConfigEbpf::setLib(std::string_view lib) { lib_ = lib; }
+
+/**
+ * @brief 获取 eBPF 配置动态库路径
+ *
+ * @return std::string 动态库路径
+ */
+std::string ConfigEbpf::getLib() const { return lib_; }
+
+/**
+ * @brief 设置 eBPF 配置路径
+ *
+ * @param config 配置路径
+ */
+void ConfigEbpf::setConfig(std::string_view config) { config_ = config; }
+
+/**
+ * @brief 获取 eBPF 配置路径
+ *
+ * @return std::string 配置路径
+ */
+std::string ConfigEbpf::getConfig() const { return config_; }
+
+bool ConfigEbpf::operator==(const ConfigEbpf &other) const {
+  return lib_ == other.lib_ && config_ == other.config_;
+}
+
+bool ConfigEbpf::operator!=(const ConfigEbpf &other) const { return !(*this == other); }
+
 Configs::Configs(std::string_view configs_path) : Configs{} {
   try {
     *this = loadFromConfig(configs_path);
@@ -64,22 +101,60 @@ void Configs::setPrometheusListen(std::string_view listen) {
 std::string Configs::getPrometheusListen() const { return prometheus_listen_; }
 
 /**
- * @brief 设置 eBPF 程序路径
+ * @brief 设置 eBPF 全量配置
  *
- * @param ebpf_so 路径
+ * @param ebpf_so eBPF 全量配置
  */
-void Configs::setEbpf(const std::vector<std::string> &ebpf_so) { ebpf_ = ebpf_so; }
+void Configs::setEbpfs(const EbpfMap &ebpf_so) { ebpfs_ = ebpf_so; }
 
 /**
- * @brief 获取 eBPF 程序路径
+ * @brief 获取 eBPF 全量配置
  *
- * @return std::vector<std::string> 路径
+ * @return Configs::EbpfMap 全量配置
  */
-std::vector<std::string> Configs::getEbpf() const { return ebpf_; }
+Configs::EbpfMap Configs::getEbpfs() const { return ebpfs_; }
+
+/**
+ * @brief 增加一个 eBPF 配置
+ *
+ * @param name eBPF 配置名称
+ * @param lib eBPF 动态库路径
+ * @param config eBPF 配置路径
+ */
+void Configs::appendEbpf(std::string_view name, std::string_view lib, std::string_view config) {
+  if (name.empty()) {
+    return;
+  }
+
+  std::string name_str{name};
+
+  auto iter = ebpfs_.find(name_str);
+  if (iter != ebpfs_.end()) {
+    iter->second = ConfigEbpf{lib, config};
+  } else {
+    ebpfs_.emplace(name_str, ConfigEbpf{lib, config});
+  }
+}
+
+/**
+ * @brief 删除一个 eBPF 配置
+ *
+ * @param name eBPF 配置名称
+ */
+void Configs::deleteEbpf(std::string_view name) {
+  if (name.empty()) {
+    return;
+  }
+
+  auto iter = ebpfs_.find(std::string{name});
+  if (iter != ebpfs_.end()) {
+    ebpfs_.erase(iter);
+  }
+}
 
 bool Configs::operator==(const Configs &other) const {
   return prometheus_enabled_ == other.prometheus_enabled_ &&
-         prometheus_listen_ == other.prometheus_listen_ && ebpf_ == other.ebpf_;
+         prometheus_listen_ == other.prometheus_listen_ && ebpfs_ == other.ebpfs_;
 }
 
 bool Configs::operator!=(const Configs &other) const { return !(*this == other); }

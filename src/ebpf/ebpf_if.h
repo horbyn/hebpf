@@ -5,6 +5,7 @@
 #include <string>
 #include <string_view>
 #include "nlohmann/json.hpp"
+#include "src/daemon/configurable.h"
 #include "src/io/io_if.h"
 // clang-format on
 
@@ -15,7 +16,7 @@ constexpr std::string_view SERVICE_CREATE{"create_service"};
 namespace hebpf {
 namespace ebpf {
 
-class EbpfIf {
+class EbpfIf : public daemon::Configurable {
 public:
   virtual ~EbpfIf() = default;
 
@@ -37,7 +38,7 @@ public:
 template <typename T>
 class EbpfSkelIf : public EbpfIf {
 public:
-  explicit EbpfSkelIf(std::unique_ptr<T> skel = nullptr);
+  explicit EbpfSkelIf(std::unique_ptr<T> skel = {});
 
   EbpfSkelIf(const EbpfSkelIf &) = delete;
   EbpfSkelIf &operator=(const EbpfSkelIf &) = delete;
@@ -54,6 +55,7 @@ protected:
   void destroy() override;
   bool start(std::weak_ptr<io::IoIf> io_ctx = {}) override;
   nlohmann::json getStatus() const override;
+  void onConfigUpdate(const nlohmann::json &config) override;
 
   std::unique_ptr<T> skel_;
   std::weak_ptr<io::IoIf> io_ctx_;

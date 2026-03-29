@@ -47,12 +47,9 @@ void Daemon::stop() {
   if (loader_ != nullptr) {
     const auto &all_ebpf = loader_->getAllService();
     for (const auto &so_name : all_ebpf) {
-      auto *service = loader_->getService(so_name);
-      if (service != nullptr) {
-        service->stop();
-      }
-      loader_->unloadServices(so_name);
+      unloadEbpf(so_name);
     }
+    current_ebpf_.clear();
   }
   LOG(info, "eBPF programs stopped");
 
@@ -76,57 +73,54 @@ void Daemon::stop() {
  */
 void Daemon::update(const Configs &config) {
   ASSERT(loader_ != nullptr);
-  auto new_so = config.getEbpf();
+  auto new_ebpf = config.getEbpfs();
 
-  std::lock_guard<std::mutex> lock{mutex_};
+  decltype(new_ebpf) current_ebpf_dup{};
+  daemon::LoaderIf *loader{};
+  {
+    std::lock_guard<std::mutex> lock{mutex_};
+    current_ebpf_dup = current_ebpf_;
+    loader = loader_.get();
+  }
 
-  // 需要卸载的（current 中存在但 new 中不存在）
-  for (const auto &so : current_so_) {
-    if (std::find(new_so.begin(), new_so.end(), so) == new_so.end()) {
-      auto *service = loader_->getService(so);
-      if (service == nullptr) {
-        GLOBAL_LOG(error, "Cannot get service in unloading: ", so);
-        continue;
-      }
-
-      service->stop();
-
-      loader_->unloadServices(so);
+  // 需要卸载的
+  for (const auto &elem : current_ebpf_dup) {
+    if (new_ebpf.find(elem.first) == new_ebpf.end()) {
+      auto lib = elem.second.getLib();
+      unloadEbpf(lib);
     }
   }
 
-  // 需要加载的（new 中存在但 current 中不存在）
-  for (const auto &so : new_so) {
-    if (std::find(current_so_.begin(), current_so_.end(), so) == current_so_.end()) {
-      if (!loader_->loadService(so)) {
-        continue;
+  // 需要加载的
+  for (const auto &elem : new_ebpf) {
+    auto new_lib = elem.second.getLib();
+    auto new_conf = elem.second.getConfig();
+
+    auto current_it = current_ebpf_dup.find(elem.first);
+    if (current_it == current_ebpf_dup.end()) {
+      // 加载
+      loadEbpf(new_lib, new_conf);
+    } else {
+      // 更新
+      auto current_lib = current_it->second.getLib();
+      if (current_lib != new_lib) {
+        unloadEbpf(current_lib);
+        loadEbpf(new_lib, new_conf);
+        continue; // 更新动态库同时也会更新配置文件，所以后续不需再继续检查配置文件了
       }
 
-      auto *service = loader_->getService(so);
-      if (service == nullptr) {
-        GLOBAL_LOG(error, "Cannot get service in loading: ", so);
-        continue;
-      }
-
-      if (!service->start(io_ctx_)) {
-        GLOBAL_LOG(error, "Failed to start BPF service");
-        continue;
+      auto current_conf = current_it->second.getConfig();
+      if (current_conf != new_conf) {
+        loader->unregisterServiceConfig(current_lib, current_conf);
+        loader->registerServiceConfig(new_lib, new_conf);
       }
     }
   }
-  current_so_ = new_so;
-}
 
-/**
- * @brief 设置 io 模块
- *
- * @param io_ctx io 对象
- * @return true 设置成功
- * @return false 设置失败
- */
-bool Daemon::setIoContext(std::weak_ptr<io::IoIf> io_ctx) {
-  io_ctx_ = io_ctx;
-  return static_cast<bool>(io_ctx_.lock() != nullptr);
+  {
+    std::lock_guard<std::mutex> lock{mutex_};
+    current_ebpf_ = new_ebpf;
+  }
 }
 
 /**
@@ -145,15 +139,16 @@ void Daemon::produceLoop() noexcept {
 
   try {
     while (running_.load()) {
-      std::vector<std::string> services{};
+      Configs::EbpfMap services{};
 
       {
         std::lock_guard<std::mutex> lock{mutex_};
-        services = current_so_;
+        services = current_ebpf_;
       }
 
-      for (const auto &so_path : services) {
-        const auto *service = loader_->getService(so_path);
+      for (const auto &pair : services) {
+        auto lib = pair.second.getLib();
+        const auto *service = loader_->getService(lib);
         if (service != nullptr) {
           auto status = service->getStatus();
           if (!status.empty()) {
@@ -176,6 +171,42 @@ void Daemon::produceLoop() noexcept {
         exc.stackFrame());
   } catch (const std::exception &exc) {
     LOG(error, "Daemon productor dropped: {}", exc.what());
+  }
+}
+
+/**
+ * @brief 加载 eBPF 程序
+ *
+ * @param so_path eBPF 动态库路径
+ * @param config_path eBPF 配置路径
+ */
+void Daemon::loadEbpf(std::string_view so_path, std::string_view config_path) {
+  ASSERT(!so_path.empty());
+  ASSERT(loader_ != nullptr);
+
+  std::weak_ptr<io::IoIf> io_ctx{};
+  {
+    std::lock_guard<std::mutex> lock{mutex_};
+    if (!loader_->loadService(so_path, config_path)) {
+      return;
+    }
+  }
+}
+
+/**
+ * @brief 卸载 eBPF 程序
+ *
+ * @param so_path eBPF 动态库路径
+ */
+void Daemon::unloadEbpf(std::string_view so_path) {
+  ASSERT(!so_path.empty());
+  ASSERT(loader_ != nullptr);
+
+  {
+    std::lock_guard<std::mutex> lock{mutex_};
+    if (!loader_->unloadServices(so_path)) {
+      GLOBAL_LOG(error, "Cannot unload service: {}", so_path);
+    }
   }
 }
 

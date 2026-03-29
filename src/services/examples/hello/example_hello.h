@@ -15,7 +15,7 @@ constexpr std::string_view SERVICE_NAME_HELLO{"example_hello"};
 class ExampleHelloEbpf : public ebpf::EbpfSkelIf<struct example_hello_bpf>,
                          public log::Loggable<log::Id::ebpf> {
 public:
-  explicit ExampleHelloEbpf(std::unique_ptr<struct example_hello_bpf> skel = nullptr);
+  explicit ExampleHelloEbpf(std::unique_ptr<struct example_hello_bpf> skel = {});
 
   std::string getName() const override;
   bool start(std::weak_ptr<io::IoIf> io_ctx = {}) override;

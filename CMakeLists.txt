@@ -71,6 +71,7 @@ ExternalProject_Add(libbpf
     BUILD_STATIC_ONLY=1
     OBJDIR=${CMAKE_BINARY_DIR}/libbpf/libbpf
     DESTDIR=${CMAKE_BINARY_DIR}/libbpf
+    CFLAGS="-fPIC"
     INCLUDEDIR=
     LIBDIR=
     UAPIDIR=

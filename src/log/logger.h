@@ -56,7 +56,6 @@ public:
   virtual void setStdout(bool set);
 
 private:
-  Level level_{LOGLEVEL_DEFAULT};
   std::string file_{LOGFILE_DEFAULT};
 };
 
