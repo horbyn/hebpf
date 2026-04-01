@@ -22,6 +22,7 @@ constexpr std::string_view JKEY_ACL_SPORT{"sport"};
 constexpr std::string_view JKEY_ACL_DPORT{"dport"};
 constexpr std::string_view JKEY_ACL_PROTOCOL{"protocol"};
 constexpr std::string_view JKEY_ACL_ACTION{"action"};
+constexpr std::string_view JKEY_ACL_HOOK{"hook"};
 constexpr std::string_view JKEY_ACL_IFINDEX{"ifindex"};
 constexpr std::string_view JKEY_ACL_RULES{"rules"};
 
@@ -71,8 +72,13 @@ private:
 
 class AclRules final {
 public:
+  enum class HookType : uint8_t { TC, XDP_GENERIC, XDP_NATIVE, XDP_OFFLOAD, UNKNOWN };
+
   explicit AclRules();
-  explicit AclRules(int ifindex, const std::vector<AclRulesElem> &rules);
+  explicit AclRules(HookType hook, int ifindex, const std::vector<AclRulesElem> &rules);
+
+  void setHook(HookType hook);
+  HookType getHook() const noexcept;
 
   void setIfindex(int ifindex);
   int getIfindex() const noexcept;
@@ -86,6 +92,7 @@ public:
   friend void to_json(nlohmann::json &json, const AclRules &acl);
 
 private:
+  HookType hook_;
   int ifindex_;
   std::vector<AclRulesElem> rules_;
 };

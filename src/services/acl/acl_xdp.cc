@@ -1,11 +1,10 @@
 // clang-format off
-#include "acl.h"
+#include "acl_xdp.h"
 #include <arpa/inet.h>
 #include <bpf/bpf.h>
 #include "src/common/assert.h"
 #include "src/data/metrics.h"
 #include "src/data/kernel_data.h"
-#include "src/ebpf/tc_hook.h"
 #include "src/ebpf/xdp_hook.h"
 #include "src/fd/fd.h"
 #include "acl.bpf.h"
@@ -15,7 +14,7 @@ namespace hebpf {
 namespace services {
 namespace acl {
 
-Acl::Acl(std::unique_ptr<acl_bpf> skel) : ebpf::EbpfSkelIf<acl_bpf>{std::move(skel)} {
+AclXdp::AclXdp(std::unique_ptr<acl_xdp_bpf> skel) : ebpf::EbpfSkelIf<acl_xdp_bpf>{std::move(skel)} {
   ifindex_ = INVALID_IFINDEX;
   rules_ = AclRules{};
   attached_.store(false);
@@ -26,13 +25,13 @@ Acl::Acl(std::unique_ptr<acl_bpf> skel) : ebpf::EbpfSkelIf<acl_bpf>{std::move(sk
  *
  * @return std::string 名称
  */
-std::string Acl::getName() const { return std::string{SERVICE_NAME_ACL}; }
+std::string AclXdp::getName() const { return std::string{SERVICE_NAME_ACL}; }
 
 /**
  * @brief acl 解绑 hook
  *
  */
-void Acl::detach() {
+void AclXdp::detach() {
   if (!attached_.load()) {
     return;
   }
@@ -51,8 +50,8 @@ void Acl::detach() {
  * @return true 成功
  * @return false 失败
  */
-bool Acl::start(std::weak_ptr<io::IoIf> io_ctx) {
-  if (!EbpfSkelIf<acl_bpf>::start(io_ctx)) {
+bool AclXdp::start(std::weak_ptr<io::IoIf> io_ctx) {
+  if (!EbpfSkelIf<acl_xdp_bpf>::start(io_ctx)) {
     throw EXCEPT(fmt::format("Start {} service failed", SERVICE_NAME_ACL));
   }
 
@@ -70,9 +69,9 @@ bool Acl::start(std::weak_ptr<io::IoIf> io_ctx) {
  * @brief 停止 acl
  *
  */
-void Acl::stop() {
+void AclXdp::stop() {
   this->detach();
-  EbpfSkelIf<acl_bpf>::detach();
+  EbpfSkelIf<acl_xdp_bpf>::detach();
 
   this->destroy();
 }
@@ -82,7 +81,7 @@ void Acl::stop() {
  *
  * @param config ACL 配置
  */
-void Acl::onConfigUpdate(const nlohmann::json &config) {
+void AclXdp::onConfigUpdate(const nlohmann::json &config) {
 
   AclRules acl_rules{};
   try {
@@ -94,7 +93,7 @@ void Acl::onConfigUpdate(const nlohmann::json &config) {
   clearKernelRules();
 
   auto hook_type = acl_rules.getHook();
-  attachTc(hook_type, acl_rules.getIfindex());
+  attachXdp(hook_type, acl_rules.getIfindex());
 
   size_t success = 0;
   const auto &rules = acl_rules.getRules();
@@ -148,7 +147,7 @@ void Acl::onConfigUpdate(const nlohmann::json &config) {
     } else {
       rules_.addRules(rule);
       ++success;
-      if (success >= MAX_RULES_SIZE) {
+      if (success >= MAX_RULES_SIZE2) {
         // TODO: 目前暂时 hard-code 规则数量为 MAX_RULES_SIZE
         break;
       }
@@ -163,7 +162,7 @@ void Acl::onConfigUpdate(const nlohmann::json &config) {
  *
  * @return int 文件描述符，出错返回 FD_INVALID
  */
-int Acl::getMapFd() const {
+int AclXdp::getMapFd() const {
   ASSERT(skel_ != nullptr);
 
   auto map_fd = bpf_map__fd(skel_->maps.krules_acl);
@@ -177,7 +176,7 @@ int Acl::getMapFd() const {
  * @brief 清空内核态规则
  *
  */
-void Acl::clearKernelRules() {
+void AclXdp::clearKernelRules() {
   auto map_fd = getMapFd();
 
   std::vector<struct ipv4_tuple> keys{};
@@ -197,16 +196,16 @@ void Acl::clearKernelRules() {
 }
 
 /**
- * @brief acl 绑定 TC hook
+ * @brief acl 绑定 XDP Generic hook
  *
  * @param hook_type 类型
  * @param ifindex 网络接口索引
  */
-void Acl::attachTc(AclRules::HookType hook_type, int ifindex) {
+void AclXdp::attachXdp(AclRules::HookType hook_type, int ifindex) {
   if (ifindex < 0) {
     throw EXCEPT(fmt::format("Invalid ifindex: {}", ifindex));
   }
-  if (hook_type != AclRules::HookType::TC) {
+  if (hook_type == AclRules::HookType::TC || hook_type == AclRules::HookType::UNKNOWN) {
     throw EXCEPT(fmt::format("Invalid hook type \"{}\" in XDP attaching",
                              enumName<AclRules::HookType>(hook_type)));
   }
@@ -215,16 +214,30 @@ void Acl::attachTc(AclRules::HookType hook_type, int ifindex) {
     return;
   }
 
-  auto fd = bpf_program__fd(skel_->progs.hebpf_acl_tc_ingress);
+  auto fd = bpf_program__fd(skel_->progs.hebpf_acl_xdp_ingress);
   if (fd < 0) {
-    throw EXCEPT(fmt::format("Cannot get TC program fd: {}", SERVICE_NAME_ACL), true);
+    throw EXCEPT(fmt::format("Cannot get XDP program fd: {}", SERVICE_NAME_ACL), true);
   }
-  hook_ = std::make_unique<ebpf::TcHook>(ifindex, ebpf::TcHook::Direct::INGRESS);
+
+  ebpf::XdpHook::Mode mode{};
+  switch (hook_type) {
+  case AclRules::HookType::XDP_NATIVE:
+    mode = ebpf::XdpHook::Mode::XDP_NATIVE;
+    break;
+  case AclRules::HookType::XDP_OFFLOAD:
+    mode = ebpf::XdpHook::Mode::XDP_OFFLOAD;
+    break;
+  default:
+    mode = ebpf::XdpHook::Mode::XDP_GENERIC;
+    break;
+  }
+  hook_ = std::make_unique<ebpf::XdpHook>(ifindex, mode);
   if (hook_ == nullptr) {
-    throw EXCEPT(fmt::format("Cannot create TC hook: {}", SERVICE_NAME_ACL));
+    throw EXCEPT(fmt::format("Cannot create XDP hook: {}", SERVICE_NAME_ACL));
   }
+
   if (!hook_->attach(std::make_unique<Fd>(fd))) {
-    throw EXCEPT(fmt::format("Cannot attach TC hook: {}", SERVICE_NAME_ACL));
+    throw EXCEPT(fmt::format("Cannot attach XDP hook: {}", SERVICE_NAME_ACL));
   }
   ifindex_ = ifindex;
 
@@ -242,5 +255,5 @@ void Acl::attachTc(AclRules::HookType hook_type, int ifindex) {
  * @return std::unique_ptr<hebpf::ebpf::EbpfIf> 对象
  */
 extern "C" std::unique_ptr<hebpf::ebpf::EbpfIf> create_service() {
-  return std::make_unique<hebpf::services::acl::Acl>();
+  return std::make_unique<hebpf::services::acl::AclXdp>();
 }

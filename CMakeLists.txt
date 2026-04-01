@@ -235,6 +235,7 @@ include_directories(
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/src/services
   ${LIBBPF_INCLUDE_DIRS}
+  ${LIBBPF_BOOTSTRAP_PATH}/bpftool/include
   ${Boost_INCLUDE_DIRS}
 )
 

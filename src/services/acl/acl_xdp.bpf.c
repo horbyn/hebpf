@@ -6,9 +6,6 @@
 #include "acl.bpf.h"
 // clang-format on
 
-#define TC_ACT_OK 0
-#define TC_ACT_SHOT 2
-
 // 内核态 ACL 规则哈希表
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
@@ -17,24 +14,24 @@ struct {
   __type(value, __u32);
 } krules_acl SEC(".maps");
 
-SEC("tc")
-int hebpf_acl_tc_ingress(struct __sk_buff *skb) {
+SEC("xdp")
+int hebpf_acl_xdp_ingress(struct xdp_md *ctx) {
 
-  void *data = (void *)(__u64)skb->data;
-  void *data_end = (void *)(__u64)skb->data_end;
-
-  if (skb->protocol != bpf_htons(ETH_P_IP)) {
-    return TC_ACT_OK;
-  }
+  void *data = (void *)(__u64)ctx->data;
+  void *data_end = (void *)(__u64)ctx->data_end;
 
   struct ethhdr *eth = data;
   if ((void *)(eth + 1) > data_end) {
-    return TC_ACT_OK;
+    return XDP_PASS;
+  }
+
+  if (eth->h_proto != bpf_htons(ETH_P_IP)) {
+    return XDP_PASS;
   }
 
   struct iphdr *ip = (struct iphdr *)(eth + 1);
   if ((void *)(ip + 1) > data_end) {
-    return TC_ACT_OK;
+    return XDP_PASS;
   }
 
   struct ipv4_tuple tuple = {};
@@ -42,6 +39,7 @@ int hebpf_acl_tc_ingress(struct __sk_buff *skb) {
   tuple.daddr = ip->daddr;
   tuple.protocol = ip->protocol;
   tuple.sport = ANY_PORT;
+  tuple.dport = ANY_PORT;
 
   __u16 origin_src_port = 0;
   __u16 offset = ip->ihl * 4;
@@ -60,10 +58,10 @@ int hebpf_acl_tc_ingress(struct __sk_buff *skb) {
         tuple.dport = udp->dest;
       }
     } else {
-      return TC_ACT_OK;
+      return XDP_PASS;
     }
   } else {
-    return TC_ACT_OK;
+    return XDP_PASS;
   }
 
   // 先用任意源端口查找一次
@@ -75,12 +73,12 @@ int hebpf_acl_tc_ingress(struct __sk_buff *skb) {
   }
   if (action && *action == ACL_ACTION_DENY) {
     bpf_printk("Hebpf packet drop");
-    return TC_ACT_SHOT;
+    return XDP_DROP;
   }
 
   bpf_printk("Hebpf packet [%u]: %u:%u -> %u:%u", tuple.protocol, tuple.saddr,
              bpf_ntohs(origin_src_port), tuple.daddr, bpf_ntohs(tuple.dport));
-  return TC_ACT_OK;
+  return XDP_PASS;
 }
 
 char _license[] SEC("license") = "GPL";

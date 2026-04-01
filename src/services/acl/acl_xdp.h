@@ -6,7 +6,7 @@
 #include "src/ebpf/ebpf_if.h"
 #include "src/ebpf/ebpf_net_hook_if.h"
 #include "src/log/logger.h"
-#include "src/services/acl/acl.skel.h"
+#include "src/services/acl/acl_xdp.skel.h"
 #include "acl_rules.h"
 // clang-format on
 
@@ -14,11 +14,11 @@ namespace hebpf {
 namespace services {
 namespace acl {
 
-constexpr size_t MAX_RULES_SIZE{10240};
+constexpr size_t MAX_RULES_SIZE2{10240};
 
-class Acl : public ebpf::EbpfSkelIf<struct acl_bpf>, public log::Loggable<log::Id::ebpf> {
+class AclXdp : public ebpf::EbpfSkelIf<struct acl_xdp_bpf>, public log::Loggable<log::Id::ebpf> {
 public:
-  explicit Acl(std::unique_ptr<acl_bpf> skel = {});
+  explicit AclXdp(std::unique_ptr<acl_xdp_bpf> skel = {});
 
   std::string getName() const override;
   void detach() override;
@@ -29,7 +29,7 @@ public:
 private:
   int getMapFd() const;
   void clearKernelRules();
-  void attachTc(AclRules::HookType hook_type, int ifindex);
+  void attachXdp(AclRules::HookType hook_type, int ifindex);
 
   std::unique_ptr<ebpf::EbpfNetHookIf> hook_;
   int ifindex_;

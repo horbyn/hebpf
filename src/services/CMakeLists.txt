@@ -1,4 +1,4 @@
-macro(ebpf_copile source)
+macro(ebpf_compile source)
   get_filename_component(source_file ${source} NAME_WE)
 
   set(skel_file "${CMAKE_CURRENT_BINARY_DIR}/${source_file}.skel.h")

@@ -86,5 +86,20 @@ bool EbpfNetHookIf::detach() {
   return err == 0 ? true : false;
 }
 
+/**
+ * @brief 绑定前检查
+ *
+ * @note 由派生类重写
+ * @return int 成功返回 0，出错返回非 0
+ */
+int EbpfNetHookIf::pre_attach_check() { return 0; }
+
+/**
+ * @brief 取消绑定后检查
+ *
+ * @note 由派生类重写
+ */
+void EbpfNetHookIf::post_detach_cleanup() {}
+
 } // namespace ebpf
 } // namespace hebpf

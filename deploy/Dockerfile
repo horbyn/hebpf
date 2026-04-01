@@ -30,7 +30,7 @@ RUN apt-get update && apt install -y --no-install-recommends ca-certificates && 
         build-essential make gdb sudo vim wget git cmake gcovr valgrind \
         pkg-config clang libelf1 libelf-dev zlib1g-dev libboost-all-dev \
         systemd init plocate language-pack-en tree zsh \
-        iputils-ping iproute2 tcpdump lsof iptables && \
+        iputils-ping iproute2 tcpdump lsof iptables sysstat && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get clean && \
     # 中文

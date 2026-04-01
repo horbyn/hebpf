@@ -27,8 +27,8 @@ public:
 protected:
   virtual int do_attach(int prog_fd) = 0;
   virtual int do_detach() = 0;
-  virtual int pre_attach_check() = 0;
-  virtual void post_detach_cleanup() = 0;
+  virtual int pre_attach_check();
+  virtual void post_detach_cleanup();
 
   int ifindex_;
   bool attached_;
