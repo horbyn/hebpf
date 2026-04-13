@@ -292,6 +292,7 @@ target_link_libraries(${PROJECT_NAME}_core INTERFACE
   fd
   inotify
   io
+  klog
   log
   monitor
   signal

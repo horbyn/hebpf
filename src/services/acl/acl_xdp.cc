@@ -165,7 +165,7 @@ void AclXdp::onConfigUpdate(const nlohmann::json &config) {
 int AclXdp::getMapFd() const {
   ASSERT(skel_ != nullptr);
 
-  auto map_fd = bpf_map__fd(skel_->maps.krules_acl);
+  auto map_fd = bpf_map__fd(skel_->maps.hebpf_krules_acl);
   if (map_fd < 0) {
     throw EXCEPT("Failed to get ACL rules in kernel mode");
   }

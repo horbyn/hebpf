@@ -1,5 +1,6 @@
 // clang-format off
 #include "example_usermode.h"
+#include "src/common/common.h"
 #include "src/common/exception.h"
 #include "src/data/metrics.h"
 #include "src/data/kernel_data.h"
@@ -35,8 +36,7 @@ void ExampleUsermodeEbpf::load() {
   ringbuff_ = std::make_unique<ebpf::Ringbuffer>(
       std::make_unique<Fd>(fd), EbpfSkelIf<example_usermode_bpf>::io_ctx_,
       ebpf::Ringbuffer::RingbufferCb{
-          "ExampleUsermodeEbpf::onEvent()",
-          [this](void *data, size_t len) { return onEvent(data, len); }});
+          FUNCTION_LINE, [this](void *data, size_t len) { return onEvent(data, len); }});
   ringbuff_->init();
 }
 

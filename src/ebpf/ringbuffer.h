@@ -4,10 +4,11 @@
 #include <bpf/libbpf.h>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include "src/callback/callback.h"
 #include "src/fd/fd_if.h"
-#include "src/log/logger.h"
 #include "src/io/io_if.h"
+#include "src/log/logger.h"
 #include "ringbuffer_if.h"
 // clang-format on
 
@@ -27,10 +28,10 @@ public:
   Ringbuffer(Ringbuffer &&other) noexcept;
   Ringbuffer &operator=(Ringbuffer &&other) noexcept;
 
-  void consume() const noexcept override;
   void init() override;
 
 private:
+  void consume() const;
   struct RingBufferDeleter {
     void operator()(struct ring_buffer *rb) const noexcept {
       if (rb) {
@@ -44,6 +45,7 @@ private:
   RingbufferCb callback_;
   std::shared_ptr<void> watcher_;
   std::weak_ptr<io::IoIf> io_ctx_;
+  mutable std::mutex mutex_;
 };
 
 } // namespace ebpf

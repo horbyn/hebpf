@@ -30,3 +30,4 @@ endmacro()
 
 add_subdirectory(acl)
 add_subdirectory(examples)
+add_subdirectory(klog)

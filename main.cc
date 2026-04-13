@@ -14,6 +14,7 @@
 #include "src/daemon/daemon.h"
 #include "src/daemon/loader.h"
 #include "src/data/queue.h"
+#include "src/services/klog/klog.h"
 #include "src/inotify/inotify_manager.h"
 #include "src/io/io.h"
 #include "src/monitor/monitor.h"
@@ -143,7 +144,9 @@ int main(int argc, char **argv) {
       monitor->run();
     }
 
-    watcher->startWatching(daemon::CONFIGS_DEFAULT);
+    services::klog::Klog klog{io_ctx};
+
+    watcher->startWatching(daemon::CONFIGS_DEFAULT); // 开始初始化配置并启动 eBPF 程序
     daemon->setStatusQueue(queue);
     daemon->run();
 
@@ -157,6 +160,7 @@ int main(int argc, char **argv) {
     if (monitor != nullptr) {
       monitor->stop();
     }
+    klog.unpin();
 
     GLOBAL_LOG(info, "Shutting down");
   } catch (const hebpf::except::Exception &exc) {

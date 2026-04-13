@@ -3,6 +3,7 @@
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
+#include "src/services/klog/klog_helpers.bpf.h"
 #include "acl.bpf.h"
 // clang-format on
 
@@ -12,7 +13,7 @@ struct {
   __uint(max_entries, 10240);
   __type(key, struct ipv4_tuple);
   __type(value, __u32);
-} krules_acl SEC(".maps");
+} hebpf_krules_acl SEC(".maps");
 
 SEC("xdp")
 int hebpf_acl_xdp_ingress(struct xdp_md *ctx) {
@@ -65,19 +66,20 @@ int hebpf_acl_xdp_ingress(struct xdp_md *ctx) {
   }
 
   // 先用任意源端口查找一次
-  __u32 *action = bpf_map_lookup_elem(&krules_acl, &tuple);
+  __u32 *action = bpf_map_lookup_elem(&hebpf_krules_acl, &tuple);
   if (action == NULL) {
     // 再用原始源端口查找
     tuple.sport = origin_src_port;
-    action = bpf_map_lookup_elem(&krules_acl, &tuple);
+    action = bpf_map_lookup_elem(&hebpf_krules_acl, &tuple);
   }
   if (action && *action == ACL_ACTION_DENY) {
-    bpf_printk("Hebpf packet drop");
+    KLOG(KLOG_LEVEL_DEBUG, "Hebpf packet drop [%P] %A:%u", tuple.protocol, tuple.saddr,
+         bpf_ntohs(origin_src_port));
     return XDP_DROP;
   }
 
-  bpf_printk("Hebpf packet [%u]: %u:%u -> %u:%u", tuple.protocol, tuple.saddr,
-             bpf_ntohs(origin_src_port), tuple.daddr, bpf_ntohs(tuple.dport));
+  KLOG(KLOG_LEVEL_DEBUG, "Hebpf packet [%P]: %A:%u -> %A:%u", tuple.protocol, tuple.saddr,
+       bpf_ntohs(origin_src_port), tuple.daddr, bpf_ntohs(tuple.dport));
   return XDP_PASS;
 }
 

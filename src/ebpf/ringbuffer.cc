@@ -10,34 +10,33 @@ namespace ebpf {
 
 Ringbuffer::Ringbuffer(std::unique_ptr<FdIf> fd, std::weak_ptr<io::IoIf> io_ctx,
                        RingbufferCb callback)
-    : fd_{std::move(fd)}, callback_{std::move(callback)}, io_ctx_{io_ctx} {}
+    : fd_{std::move(fd)}, callback_{std::move(callback)}, io_ctx_{io_ctx}, mutex_{} {}
 
 Ringbuffer::Ringbuffer(Ringbuffer &&other) noexcept
     : fd_{std::move(other.fd_)}, ringbuff_{std::move(other.ringbuff_)},
-      callback_{std::move(other.callback_)} {
+      callback_{std::move(other.callback_)}, watcher_{std::move(other.watcher_)},
+      io_ctx_{std::move(other.io_ctx_)} {
   other.fd_ = nullptr;
   other.ringbuff_ = nullptr;
+  other.callback_ = RingbufferCb{};
+  other.watcher_ = nullptr;
+  other.io_ctx_ = {};
 }
 
 Ringbuffer &Ringbuffer::operator=(Ringbuffer &&other) noexcept {
   if (this != &other) {
     fd_ = std::move(other.fd_);
-    ringbuff_ = std::move(other.ringbuff_);
-    callback_ = std::move(other.callback_);
     other.fd_ = nullptr;
+    ringbuff_ = std::move(other.ringbuff_);
     other.ringbuff_ = nullptr;
+    callback_ = std::move(other.callback_);
+    other.callback_ = RingbufferCb();
+    watcher_ = std::move(other.watcher_);
+    other.watcher_ = nullptr;
+    io_ctx_ = std::move(other.io_ctx_);
+    other.io_ctx_ = {};
   }
   return *this;
-}
-
-/**
- * @brief 取出内核事件
- *
- */
-void Ringbuffer::consume() const noexcept {
-  if (ringbuff_ != nullptr) {
-    ring_buffer__consume(ringbuff_.get());
-  }
 }
 
 /**
@@ -66,6 +65,16 @@ void Ringbuffer::init() {
     throw EXCEPT("MUST provide a io context");
   }
   watcher_ = io_ctx_val->addReadCb(fd_->fd(), io::IoCb{FUNCTION_LINE, [this]() { consume(); }});
+}
+
+/**
+ * @brief 取出内核事件
+ *
+ */
+void Ringbuffer::consume() const {
+  if (ringbuff_ != nullptr) {
+    ring_buffer__consume(ringbuff_.get());
+  }
 }
 
 } // namespace ebpf
