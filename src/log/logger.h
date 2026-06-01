@@ -28,16 +28,17 @@ using LoggerType = spdlog::logger;
 using LogLevel = spdlog::level::level_enum;
 
 enum class Id : std::uint8_t {
-  hebpf,
-  ebpf,
-  daemon,
-  fd,
-  inotify,
-  signal,
-  io,
-  prometheus,
-  monitor,
   cmdline,
+  daemon,
+  debug_server,
+  ebpf,
+  fd,
+  hebpf,
+  inotify,
+  io,
+  monitor,
+  prometheus,
+  signal,
   MAXSIZE
 };
 enum class Level : std::uint8_t { trace, debug, info, warn, error, critical, off, MAXSIZE };

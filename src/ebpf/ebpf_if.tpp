@@ -106,23 +106,46 @@ bool EbpfSkelIf<T>::start(std::weak_ptr<io::IoIf> io_ctx) {
 }
 
 /**
- * @brief 获取 eBPF 内核态程序收集的状态信息
+ * @brief 获取 eBPF 内核态程序收集的状态信息对接 Prometheus
  *
  * @return nlohmann::json JSON 对象
  */
 template <typename T>
-nlohmann::json EbpfSkelIf<T>::getStatus() const {
+nlohmann::json EbpfSkelIf<T>::getPrometheusStatus() const {
   return nlohmann::json();
+}
+
+/**
+ * @brief 获取 eBPF 内核态程序收集的状态信息对接 Debug 服务器
+ *
+ * @return nlohmann::json JSON 对象
+ */
+template <typename T>
+nlohmann::json EbpfSkelIf<T>::getDebugStatus() const {
+  return nlohmann::json();
+}
+
+/**
+ * @brief 获取主 eBPF 程序的 fd（用于尾调用链）
+ *
+ * @return int 程序 fd, 若不存在则返回 -1
+ */
+template <typename T>
+int EbpfSkelIf<T>::getMainProgFd() const {
+  return -1;
 }
 
 /**
  * @brief 修改 eBPF 程序配置
  *
+ * @param hook_type hook 类型
+ * @param ifindex 网卡索引
  * @param config 配置对象
  */
 template <typename T>
-void EbpfSkelIf<T>::onConfigUpdate(const nlohmann::json &config) {
-  (void)config;
+void EbpfSkelIf<T>::onConfigUpdate([[maybe_unused]] daemon::HookType hook_type,
+                                   [[maybe_unused]] int ifindex,
+                                   [[maybe_unused]] const nlohmann::json &config) {
   return;
 }
 

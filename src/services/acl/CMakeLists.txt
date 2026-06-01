@@ -3,16 +3,13 @@ add_library(acl_rules
   ${sources}
 )
 
-# libbpf-bootstrap 项目只暴露了 CLANG_SYSTEM_INCLUDES 宏定义可以传入头文件路径
-set(CLANG_SYSTEM_INCLUDES ${CLANG_SYSTEM_INCLUDES} -I${CMAKE_SOURCE_DIR})
-
-ebpf_compile(acl.bpf.c)
+ebpf_compile(acl.bpf.c ACL_TC TC_In)
 target_link_libraries(${PROJECT_NAME}_acl
   PRIVATE
   acl_rules
 )
 
-ebpf_compile(acl_xdp.bpf.c)
+ebpf_compile(acl_xdp.bpf.c ACL_XDP_GENERIC XDP_Gen)
 target_link_libraries(${PROJECT_NAME}_acl_xdp
   PRIVATE
   acl_rules

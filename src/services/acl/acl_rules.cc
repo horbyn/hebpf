@@ -59,7 +59,7 @@ void AclRulesElem::setSport(uint16_t sport) { sport_ = sport; }
  *
  * @return uint16_t 源端口
  */
-uint16_t AclRulesElem::getSport() const { return sport_; }
+uint16_t AclRulesElem::getSport() const noexcept { return sport_; }
 
 /**
  * @brief 设置目的端口
@@ -73,7 +73,7 @@ void AclRulesElem::setDport(uint16_t dport) { dport_ = dport; }
  *
  * @return uint16_t 目的端口
  */
-uint16_t AclRulesElem::getDport() const { return dport_; }
+uint16_t AclRulesElem::getDport() const noexcept { return dport_; }
 
 /**
  * @brief 设置协议
@@ -220,28 +220,9 @@ void to_json(nlohmann::json &json, const AclRulesElem &acl) {
                         {JKEY_ACL_ACTION, std::string{enumName(acl.getAction())}}};
 }
 
-AclRules::AclRules() : ifindex_{INVALID_IFINDEX}, rules_{} {}
+AclRules::AclRules() : rules_{} {}
 
-AclRules::AclRules(HookType hook, int ifindex, const std::vector<AclRulesElem> &rules)
-    : hook_{hook}, ifindex_{ifindex}, rules_{rules} {}
-
-void AclRules::setHook(HookType hook) { hook_ = hook; }
-
-AclRules::HookType AclRules::getHook() const noexcept { return hook_; }
-
-/**
- * @brief 设置网卡索引
- *
- * @param ifindex 网卡索引
- */
-void AclRules::setIfindex(int ifindex) { ifindex_ = ifindex; }
-
-/**
- * @brief 获取网卡索引
- *
- * @return int 网卡索引
- */
-int AclRules::getIfindex() const noexcept { return ifindex_; }
+AclRules::AclRules(const std::vector<AclRulesElem> &rules) : rules_{rules} {}
 
 /**
  * @brief 设置 ACL 规则
@@ -271,31 +252,13 @@ std::vector<AclRulesElem> AclRules::getRules() const { return rules_; }
 void AclRules::clearRules() { rules_.clear(); }
 
 void from_json(const nlohmann::json &json, AclRules &acl) {
-  if (json.contains(JKEY_ACL_HOOK)) {
-    auto hook_opt = stringEnum<AclRules::HookType>(json.at(JKEY_ACL_HOOK).get<std::string>());
-    if (hook_opt) {
-      acl.setHook(*hook_opt);
-    } else {
-      auto vec = enumNameList<AclRules::HookType>();
-      vec.pop_back(); // UNKNOWN
-      std::string desc = fmt::format("{}", fmt::join(vec, "/"));
-      GLOBAL_LOG(warn, "{} configuration error: unknown hook \"{}\", expected {}", SERVICE_NAME_ACL,
-                 json.at(JKEY_ACL_HOOK).get<std::string>(), desc);
-      acl.setHook(AclRules::HookType::UNKNOWN);
-    }
-  }
-  if (json.contains(JKEY_ACL_IFINDEX)) {
-    acl.setIfindex(json.at(JKEY_ACL_IFINDEX).get<int>());
-  }
   if (json.contains(JKEY_ACL_RULES)) {
     acl.setRules(json.at(JKEY_ACL_RULES).get<std::vector<AclRulesElem>>());
   }
 }
 
 void to_json(nlohmann::json &json, const AclRules &acl) {
-  json = nlohmann::json{{JKEY_ACL_IFINDEX, acl.getIfindex()},
-                        {JKEY_ACL_RULES, acl.getRules()},
-                        {JKEY_ACL_HOOK, std::string{enumName(acl.getHook())}}};
+  json = nlohmann::json{{JKEY_ACL_RULES, acl.getRules()}};
 }
 
 } // namespace acl

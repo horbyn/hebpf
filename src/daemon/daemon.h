@@ -11,7 +11,8 @@
 #include "src/log/logger.h"
 #include "src/monitor/monitor_if.h"
 #include "src/data/queue_if.h"
-#include "src/subscribe/subscriber_if.h"
+#include "src/subscribe/json_subscriber_if.h"
+#include "src/subscribe/yaml_subscriber_if.h"
 #include "src/thread/thread_if.h"
 // clang-format on
 
@@ -19,22 +20,26 @@ namespace hebpf {
 namespace daemon {
 
 constexpr std::string_view NAME_DAEMON_PROD{"daemon-prod"};
+constexpr std::string_view ID_SCHEDULER_REGEX{"scheduler;{}_{}"};
 
 class Daemon : public DaemonIf,
-               public subscribe::SubscriberIf,
+               public subscribe::JsonSubscriberIf,
+               public subscribe::YamlSubscriberIf,
                public log::Loggable<log::Id::daemon> {
 public:
   explicit Daemon(std::unique_ptr<LoaderIf> loader);
 
   void run() override;
   void stop() override;
+  void update(nlohmann::json &out) override;
   void update(const Configs &config) override;
 
   void setStatusQueue(std::shared_ptr<QueueDaemonMonitor> queue);
 
 private:
   void produceLoop() noexcept;
-  void loadEbpf(std::string_view so_path, std::string_view config_path);
+  void loadEbpf(std::string_view so_path, HookType hook_type, int ifindex,
+                std::string_view config_path);
   void unloadEbpf(std::string_view so_path);
 
   std::unique_ptr<LoaderIf> loader_;

@@ -3,6 +3,7 @@
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
+#include "src/ebpf/ebpf_chain.h"
 #include "src/services/klog/klog_helpers.bpf.h"
 #include "acl.bpf.h"
 // clang-format on
@@ -16,7 +17,7 @@ struct {
 } hebpf_krules_acl SEC(".maps");
 
 SEC("xdp")
-int hebpf_acl_xdp_ingress(struct xdp_md *ctx) {
+int hebpf_acl_xdp_generic(struct xdp_md *ctx) {
 
   void *data = (void *)(__u64)ctx->data;
   void *data_end = (void *)(__u64)ctx->data_end;
@@ -80,6 +81,11 @@ int hebpf_acl_xdp_ingress(struct xdp_md *ctx) {
 
   KLOG(KLOG_LEVEL_DEBUG, "Hebpf packet [%P]: %A:%u -> %A:%u", tuple.protocol, tuple.saddr,
        bpf_ntohs(origin_src_port), tuple.daddr, bpf_ntohs(tuple.dport));
+
+#ifdef THIS_ID
+  __u32 ifindex = ctx->ingress_ifindex;
+  CHAIN_NEXT(ctx, ifindex);
+#endif
   return XDP_PASS;
 }
 

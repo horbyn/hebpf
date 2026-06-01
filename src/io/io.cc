@@ -4,7 +4,6 @@
 #include <unistd.h>
 #include <memory>
 #include <vector>
-#include <boost/asio.hpp>
 #include "src/common/exception.h"
 #include "src/fd/fd.h"
 #include "src/thread/thread.h"
@@ -112,6 +111,13 @@ std::shared_ptr<void> Io::addReadCb(int fd, IoCb callback) {
   impl_->io_ctx_.post([watcher] { watcher->start(); });
   return watcher;
 }
+
+/**
+ * @brief 返回内部 IO context 对象
+ *
+ * @return boost::asio::io_context& 内部对象
+ */
+boost::asio::io_context &Io::getIoContext() { return impl_->io_ctx_; }
 
 } // namespace io
 } // namespace hebpf

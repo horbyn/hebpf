@@ -34,30 +34,42 @@ struct ServiceHandle {
   std::string name;                       // eBPF 程序名称
   std::string path;                       // eBPF 动态库路径
   std::string config;                     // eBPF 配置路径
+  HookType hook;                          // hook 类型
+  int ifindex;                            // 绑定的 NIC 的索引
 };
 
 class Loader : public LoaderIf, public log::Loggable<log::Id::daemon> {
 public:
   ~Loader();
 
-  bool loadService(std::string_view so_path, std::string_view config_path) override;
+  bool loadService(std::string_view so_path, HookType hook_type, int ifindex,
+                   std::string_view config_path) override;
   bool unloadServices(std::string_view so_path) override;
   ebpf::EbpfIf *getService(std::string_view so_path) const override;
   std::vector<std::string> getAllService() const override;
-  void registerServiceConfig(std::string_view so_path, std::string_view config_path) override;
+  void registerServiceConfig(std::string_view so_path, HookType hook_type, int ifindex,
+                             std::string_view config_path) override;
   void unregisterServiceConfig(std::string_view so_path, std::string_view config_path) override;
+  bool setProgChainManager(std::weak_ptr<ebpf::PinnedProgMap> mgr) override;
+  bool allocateChain(HookType hook_type, int ifindex) override;
+  bool updateProgChain(HookType hook_type,
+                       const ebpf::PinnedProgMap::NamesIfindexVec &names_ifindex) override;
+  nlohmann::json getDebugStatus(void) override;
 
   bool setIoContext(std::weak_ptr<io::IoIf> io_ctx);
   bool setInotifyManager(std::weak_ptr<inotify::InotifyManagerIf> inotify_manager);
 
 private:
-  void loadServiceConfigs(std::string_view so_path, std::string_view conf_path);
+  void loadServiceConfigs(std::string_view so_path, HookType hook_type, int ifindex,
+                          std::string_view conf_path);
   void clear() noexcept;
+  HookType getHookType(std::string_view canonical_name) const;
 
   std::unordered_map<std::string, ServiceHandle> services_;
   mutable std::mutex mutex_;
   std::weak_ptr<io::IoIf> io_ctx_;
   std::weak_ptr<inotify::InotifyManagerIf> inotify_mgr_;
+  std::weak_ptr<ebpf::PinnedProgMap> chain_mgr_;
 };
 
 } // namespace daemon

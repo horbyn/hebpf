@@ -10,9 +10,8 @@
 namespace hebpf {
 namespace monitor {
 
-MonitorSubscriber::MonitorSubscriber(std::string_view bind_address,
-                                     std::unique_ptr<MonitorFactoryIf> factory)
-    : bind_address_{std::string{bind_address}}, factory_{std::move(factory)} {}
+MonitorSubscriber::MonitorSubscriber(std::unique_ptr<MonitorFactoryIf> factory)
+    : bind_address_{}, factory_{std::move(factory)} {}
 
 /**
  * @brief 更新配置
@@ -36,38 +35,37 @@ void MonitorSubscriber::update(const daemon::Configs &config) {
     stop();
   }
 
-  if (need_restart) {
-    bind_address_ = listen;
-  }
-
   if (enabled) {
-    run();
+    run(listen);
   }
 }
 
 /**
  * @brief 启动 prometheus 监控
  *
+ * @param bind_address 监听地址
  */
-void MonitorSubscriber::run() {
-  ASSERT(!bind_address_.empty());
-  if (running_.load()) {
+void MonitorSubscriber::run(std::string_view bind_address) {
+  if (running_.exchange(true)) {
     return;
   }
 
-  running_.store(true);
-
+  ASSERT(!bind_address.empty());
   ASSERT(factory_ != nullptr);
-  monitor_ = factory_->create(bind_address_);
+  ASSERT(queue_ != nullptr);
+
+  std::lock_guard<std::mutex> lock{mutex_};
 
   {
-    std::lock_guard<std::mutex> lock{mutex_};
-    if (queue_ != nullptr) {
-      consumer_thread_ = std::make_unique<thread::Thread>();
-      consumer_thread_->setName(NAME_MONITOR_COUS);
-      consumer_thread_->start(std::bind(&MonitorSubscriber::consumeLoop, this));
-      queue_->start();
-    }
+    bind_address_ = std::string{bind_address};
+
+    monitor_ = factory_->create(bind_address_);
+
+    consumer_thread_ = std::make_unique<thread::Thread>();
+    consumer_thread_->setName(NAME_MONITOR_COUS);
+    consumer_thread_->start(std::bind(&MonitorSubscriber::consumeLoop, this));
+
+    queue_->start();
   }
 
   LOG(info, "Prometheus monitor is running on {}", bind_address_);
@@ -78,16 +76,16 @@ void MonitorSubscriber::run() {
  *
  */
 void MonitorSubscriber::stop() {
-  if (!running_.load()) {
+  if (!running_.exchange(false)) {
     return;
   }
 
-  running_.store(false);
+  ASSERT(queue_ != nullptr);
+
   {
     std::lock_guard<std::mutex> lock{mutex_};
-    if (queue_ != nullptr) {
-      queue_->stop();
-    }
+    queue_->stop();
+
     if (consumer_thread_ != nullptr && consumer_thread_->joinable()) {
       consumer_thread_->join();
       consumer_thread_.reset();
@@ -113,8 +111,12 @@ void MonitorSubscriber::setQueue(std::shared_ptr<QueueDaemonMonitor> queue) { qu
  *
  */
 void MonitorSubscriber::consumeLoop() noexcept {
+  ASSERT(queue_ != nullptr);
+
   try {
     while (running_.load()) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
       auto status_opt = queue_->pop();
       if (!status_opt.has_value()) {
         continue;
@@ -132,14 +134,14 @@ void MonitorSubscriber::consumeLoop() noexcept {
           mon = monitor_;
         }
         if (mon == nullptr) {
-          std::this_thread::sleep_for(std::chrono::milliseconds(100));
           continue;
         }
 
         KernelData event = elem;
         mon->incrementCounter(event.name_, event.labels_, event.value_);
-      }
-    }
+      } // end for()
+
+    } // end while()
   } catch (const except::Exception &exc) {
     GLOBAL_LOG(error, "MonitorSubscriber consumer exception: {}\n{}", exc.what(), exc.stackFrame());
   } catch (const std::exception &exc) {

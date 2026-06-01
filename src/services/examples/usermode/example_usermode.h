@@ -26,7 +26,7 @@ public:
   void load() override;
   bool start(std::weak_ptr<io::IoIf> io_ctx = {}) override;
   void stop() override;
-  nlohmann::json getStatus() const override;
+  nlohmann::json getPrometheusStatus() const override;
 
 private:
   int onEvent(void *data, size_t data_sz);

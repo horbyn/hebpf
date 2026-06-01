@@ -1,5 +1,6 @@
 // clang-format off
 #include "tc_hook.h"
+#include "src/common/enum_name.hpp"
 // clang-format on
 
 namespace hebpf {
@@ -60,6 +61,9 @@ int TcHook::pre_attach_check() {
   } else if (err == -EEXIST) {
     hook_created_ = false; // hook 已存在，要么其他程序创建，要么是绑定了 egress
   } else {
+    LOG(error,
+        "Pre attach check failed, is the NIC index \"{}\" valid? is the direction \"{}\" valid?",
+        this->ifindex_, enumName(direct_));
     return err;
   }
   return 0;

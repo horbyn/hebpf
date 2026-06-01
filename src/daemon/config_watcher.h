@@ -8,21 +8,21 @@
 #include "src/io/io_if.h"
 #include "src/log/logger.h"
 #include "src/signal/signal_if.h"
-#include "src/subscribe/publisher_if.h"
+#include "src/subscribe/yaml_publisher_if.h"
 // clang-format on
 
 namespace hebpf {
 namespace daemon {
 
 class ConfigWatcher : public ConfigWatcherIf,
-                      public subscribe::PublisherIf,
+                      public subscribe::YamlPublisherIf,
                       public log::Loggable<log::Id::daemon> {
 public:
   explicit ConfigWatcher(std::weak_ptr<inotify::InotifyManagerIf> inotify_manager);
   ~ConfigWatcher();
 
-  void attach(std::shared_ptr<subscribe::SubscriberIf> subscriber) override;
-  void detach(std::shared_ptr<subscribe::SubscriberIf> subscriber) override;
+  void attach(std::shared_ptr<subscribe::YamlSubscriberIf> subscriber) override;
+  void detach(std::shared_ptr<subscribe::YamlSubscriberIf> subscriber) override;
   void notify() override;
 
   void startWatching(std::string_view config);
@@ -35,7 +35,7 @@ private:
   Configs last_config_;
   std::mutex config_mutex_;
 
-  std::vector<std::weak_ptr<subscribe::SubscriberIf>> subscribers_;
+  std::vector<std::weak_ptr<subscribe::YamlSubscriberIf>> subscribers_;
   std::mutex subscribers_mutex_;
 
   std::weak_ptr<inotify::InotifyManagerIf> inotify_mngr_;

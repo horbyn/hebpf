@@ -247,6 +247,21 @@ else()
   set(BUILD_SHARED_LIBS ON)
 endif()
 
+include(cmake/EbpfIdMap.cmake)
+add_custom_target(force_generate_ebpf_ids
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/generated
+  COMMAND generate_script
+    ${CMAKE_SOURCE_DIR}/ebpf_id.map
+    ${CMAKE_BINARY_DIR}/generated/ebpf_ids.h
+    ${CMAKE_BINARY_DIR}/generated/ebpf_prog_map.h
+  COMMENT "Force generating eBPF IDs every build"
+)
+generate_ebpf_ids(
+  ${CMAKE_SOURCE_DIR}/ebpf_id.map
+  ${CMAKE_BINARY_DIR}/generated/ebpf_ids.h
+  ${CMAKE_BINARY_DIR}/generated/ebpf_prog_map.h
+)
+
 # 单元测试
 if(ENABLE_UTESTS)
   message(STATUS "[单元测试]: ON")
@@ -288,6 +303,7 @@ target_link_libraries(${PROJECT_NAME}_core INTERFACE
   cmdline
   common
   daemon
+  debug_server
   ebpf
   fd
   inotify

@@ -6,8 +6,8 @@
 #include <mutex>
 #include "src/data/queue_if.h"
 #include "src/log/logger.h"
+#include "src/subscribe/yaml_subscriber_if.h"
 #include "src/thread/thread_if.h"
-#include "monitor_subscriber_if.h"
 #include "monitor_if.h"
 #include "monitor_factory_if.h"
 // clang-format on
@@ -17,13 +17,13 @@ namespace monitor {
 
 constexpr std::string_view NAME_MONITOR_COUS{"monitor-cous"};
 
-class MonitorSubscriber : public MonitorSubscriberIf, public log::Loggable<log::Id::monitor> {
+class MonitorSubscriber : public subscribe::YamlSubscriberIf,
+                          public log::Loggable<log::Id::monitor> {
 public:
-  explicit MonitorSubscriber(std::string_view bind_address,
-                             std::unique_ptr<MonitorFactoryIf> factory);
+  explicit MonitorSubscriber(std::unique_ptr<MonitorFactoryIf> factory);
   void update(const daemon::Configs &config) override;
 
-  void run();
+  void run(std::string_view bind_address);
   void stop();
   void setQueue(std::shared_ptr<QueueDaemonMonitor> queue);
 

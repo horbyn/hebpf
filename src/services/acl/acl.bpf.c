@@ -3,6 +3,7 @@
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
+#include "src/ebpf/ebpf_chain.h"
 #include "src/services/klog/klog_helpers.bpf.h"
 #include "acl.bpf.h"
 // clang-format on
@@ -82,6 +83,11 @@ int hebpf_acl_tc_ingress(struct __sk_buff *skb) {
 
   KLOG(KLOG_LEVEL_DEBUG, "Hebpf packet [%P]: %A:%u -> %A:%u", tuple.protocol, tuple.saddr,
        bpf_ntohs(origin_src_port), tuple.daddr, bpf_ntohs(tuple.dport));
+
+#ifdef THIS_ID
+  __u32 ifindex = skb->ifindex;
+  CHAIN_NEXT(skb, ifindex);
+#endif
   return TC_ACT_OK;
 }
 

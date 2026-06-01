@@ -70,11 +70,11 @@ void ExampleUsermodeEbpf::stop() {
 }
 
 /**
- * @brief 获取 eBPF 内核态数据
+ * @brief 获取 eBPF 内核态数据对接 Prometheus
  *
  * @return nlohmann::json 内核数据对象
  */
-nlohmann::json ExampleUsermodeEbpf::getStatus() const {
+nlohmann::json ExampleUsermodeEbpf::getPrometheusStatus() const {
   static const std::string METRIC_NAME{"execve_total"};
   static const std::string METRIC_COMMAND{"COMM"};
 

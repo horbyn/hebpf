@@ -24,7 +24,7 @@ ConfigWatcher::~ConfigWatcher() { clear(); }
  *
  * @param subscriber 订阅者对象
  */
-void ConfigWatcher::attach(std::shared_ptr<subscribe::SubscriberIf> subscriber) {
+void ConfigWatcher::attach(std::shared_ptr<subscribe::YamlSubscriberIf> subscriber) {
   std::lock_guard<std::mutex> lock{subscribers_mutex_};
   subscribers_.push_back(subscriber);
   if (!config_path_.empty()) {
@@ -33,7 +33,9 @@ void ConfigWatcher::attach(std::shared_ptr<subscribe::SubscriberIf> subscriber) 
       std::lock_guard<std::mutex> lock2{config_mutex_};
       current = last_config_;
     }
-    subscriber->update(current);
+    if (subscriber != nullptr) { // 允许将空的订阅者先加入数组
+      subscriber->update(current);
+    }
   }
 }
 
@@ -42,7 +44,7 @@ void ConfigWatcher::attach(std::shared_ptr<subscribe::SubscriberIf> subscriber) 
  *
  * @param subscriber 订阅者对象
  */
-void ConfigWatcher::detach(std::shared_ptr<subscribe::SubscriberIf> subscriber) {
+void ConfigWatcher::detach(std::shared_ptr<subscribe::YamlSubscriberIf> subscriber) {
   std::lock_guard<std::mutex> lock{subscribers_mutex_};
   subscribers_.erase(
       std::remove_if(subscribers_.begin(), subscribers_.end(),
@@ -61,7 +63,7 @@ void ConfigWatcher::detach(std::shared_ptr<subscribe::SubscriberIf> subscriber) 
  *
  */
 void ConfigWatcher::notify() {
-  std::vector<std::shared_ptr<subscribe::SubscriberIf>> active{};
+  std::vector<std::shared_ptr<subscribe::YamlSubscriberIf>> active{};
   {
     std::lock_guard<std::mutex> lock{subscribers_mutex_};
     for (auto &weak_ptr : subscribers_) {

@@ -46,7 +46,6 @@ bool EbpfNetHookIf::attach(std::unique_ptr<FdIf> fd) {
 
   int err = pre_attach_check();
   if (err < 0) {
-    LOG(error, "Pre-attach check failed");
     return false;
   }
 

@@ -52,6 +52,42 @@ services:
     depends_on:
       - prometheus
 
+  backend1:
+    image: httpd:alpine
+    container_name: backend1
+    privileged: true
+    networks:
+      - hebpfnet
+    command: >
+      sh -c "apk update &&
+      apk add tcpdump iproute2 &&
+      echo '<h1>Backend 1</h1>' > /usr/local/apache2/htdocs/index.html &&
+      ip addr add 172.20.0.200/32 dev lo &&
+      echo 1 > /proc/sys/net/ipv4/conf/all/arp_ignore &&
+      echo 2 > /proc/sys/net/ipv4/conf/all/arp_announce &&
+      echo 1 > /proc/sys/net/ipv4/conf/eth0/arp_ignore &&
+      echo 2 > /proc/sys/net/ipv4/conf/eth0/arp_announce &&
+      httpd-foreground"
+    restart: unless-stopped
+
+  backend2:
+    image: httpd:alpine
+    container_name: backend2
+    privileged: true
+    networks:
+      - hebpfnet
+    command: >
+      sh -c "apk update &&
+      apk add tcpdump iproute2 &&
+      echo '<h1>Backend 2</h1>' > /usr/local/apache2/htdocs/index.html &&
+      ip addr add 172.20.0.200/32 dev lo &&
+      echo 1 > /proc/sys/net/ipv4/conf/all/arp_ignore &&
+      echo 2 > /proc/sys/net/ipv4/conf/all/arp_announce &&
+      echo 1 > /proc/sys/net/ipv4/conf/eth0/arp_ignore &&
+      echo 2 > /proc/sys/net/ipv4/conf/eth0/arp_announce &&
+      httpd-foreground"
+    restart: unless-stopped
+
 networks:
   hebpfnet:
     driver: bridge

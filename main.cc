@@ -14,12 +14,14 @@
 #include "src/daemon/daemon.h"
 #include "src/daemon/loader.h"
 #include "src/data/queue.h"
-#include "src/services/klog/klog.h"
+#include "src/debug_server/debug_server.h"
+#include "src/ebpf/pinned_prog_map.h"
 #include "src/inotify/inotify_manager.h"
 #include "src/io/io.h"
 #include "src/monitor/monitor.h"
 #include "src/monitor/monitor_factory.h"
 #include "src/monitor/monitor_subscriber.h"
+#include "src/services/klog/klog.h"
 #include "src/signal/signal.h"
 #include "hebpf_version.h"
 // clang-format on
@@ -36,29 +38,20 @@ void generateEmptyConfigFile() {
   out << YAML::BeginMap;
 
   out << YAML::Key << daemon::CONFIGS_PROMETHEUS << YAML::Value << YAML::BeginMap;
-  out << YAML::Key << daemon::CONFIGS_PROM_ENABLED << YAML::Value << config.getPrometheusEnabled();
+  out << YAML::Key << daemon::CONFIGS_ENABLED << YAML::Value << config.getPrometheusEnabled();
   out << YAML::Key << daemon::CONFIGS_PROM_LISTEN << YAML::Value << config.getPrometheusListen();
+  out << YAML::EndMap;
+
+  out << YAML::Key << daemon::CONFIGS_DEBUG_SERVER << YAML::Value << YAML::BeginMap;
+  out << YAML::Key << daemon::CONFIGS_ENABLED << YAML::Value << config.getDebugServerEnabled();
+  out << YAML::Key << daemon::CONFIGS_PROM_LISTEN << YAML::Value << config.getDebugServerAddr();
+  out << YAML::Key << daemon::CONFIGS_PROM_LISTEN << YAML::Value << config.getDebugServerPort();
   out << YAML::EndMap;
 
   out << YAML::Newline;
   out << YAML::Comment("以下是 eBPF 程序配置");
   out << YAML::Newline;
-
-  out << YAML::Comment("ebpf:");
-  out << YAML::Newline;
-
-  out << YAML::Comment(" ebpf1:");
-  out << YAML::Newline;
-  out << YAML::Comment("   lib: /path/to/ebpf1.so");
-  out << YAML::Newline;
-  out << YAML::Comment("   config: /path/to/ebpf1.json");
-  out << YAML::Newline;
-
-  out << YAML::Comment(" ebpf2:");
-  out << YAML::Newline;
-  out << YAML::Comment("   lib: /path/to/ebpf2.so");
-  out << YAML::Newline;
-  out << YAML::Comment("   config: /path/to/ebpf2.json");
+  out << YAML::Comment("  # hook 字段可取值: [TC, XDP_GENERIC, XDP_NATIVE, XDP_OFFLOAD]");
   out << YAML::Newline;
 
   auto ebpf_vec = config.getEbpfs();
@@ -117,12 +110,20 @@ int main(int argc, char **argv) {
     auto inotify = std::make_shared<inotify::InotifyManager>();
     inotify->initManager(io_ctx);
 
+    auto chain_mgr = std::make_shared<ebpf::PinnedProgMap>();
+    if (!chain_mgr->init()) {
+      throw EXCEPT("Failed to initialize program chain manager");
+    }
+
     auto loader = std::make_unique<daemon::Loader>();
     if (!loader->setIoContext(io_ctx)) {
       throw EXCEPT("Failed to setup io context");
     }
     if (!loader->setInotifyManager(inotify)) {
       throw EXCEPT("Failed to setup inotify manager");
+    }
+    if (!loader->setProgChainManager(chain_mgr)) {
+      throw EXCEPT("Failed to setup program chain manager");
     }
 
     auto daemon = std::make_shared<daemon::Daemon>(std::move(loader));
@@ -135,13 +136,19 @@ int main(int argc, char **argv) {
     }
 
     daemon::Configs configs = cmd_config.config_;
-    std::shared_ptr<monitor::MonitorSubscriber> monitor{};
+    auto monitor =
+        std::make_shared<monitor::MonitorSubscriber>(std::make_unique<monitor::MonitorFactory>());
+    watcher->attach(monitor);
+    monitor->setQueue(queue);
     if (configs.getPrometheusEnabled()) {
-      monitor = std::make_shared<monitor::MonitorSubscriber>(
-          configs.getPrometheusListen(), std::make_unique<monitor::MonitorFactory>());
-      monitor->setQueue(queue);
-      watcher->attach(monitor);
-      monitor->run();
+      monitor->run(configs.getPrometheusListen());
+    }
+
+    auto http_debug = std::make_shared<debug_server::DebugServer>(io_ctx);
+    watcher->attach(http_debug);
+    http_debug->attach(daemon);
+    if (configs.getDebugServerEnabled()) {
+      http_debug->start(configs.getDebugServerAddr(), configs.getDebugServerPort());
     }
 
     services::klog::Klog klog{io_ctx};
@@ -153,6 +160,11 @@ int main(int argc, char **argv) {
     // 主循环
     while (!signal.shouldStop()) {
       std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+
+    if (http_debug != nullptr) {
+      http_debug->detach(daemon);
+      http_debug->stop();
     }
 
     inotify->destroyManager();

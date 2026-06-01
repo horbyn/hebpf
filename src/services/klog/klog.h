@@ -4,7 +4,7 @@
 #include <string_view>
 #include "src/log/logger.h"
 #include "src/callback/callback.h"
-#include "src/ebpf/ringbuffer_manager.h"
+#include "src/ebpf/pinned_ringbuffer_map.h"
 #include "klog.bpf.h"
 // clang-format on
 
@@ -28,7 +28,7 @@ public:
 private:
   int logEvent(void *data, size_t size);
 
-  std::unique_ptr<ebpf::RingbufferManager> mgr_;
+  std::unique_ptr<ebpf::RingBufferMap> mgr_;
   std::unique_ptr<ebpf::Ringbuffer> ringbuf_;
 };
 

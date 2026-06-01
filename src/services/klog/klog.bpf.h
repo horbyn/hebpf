@@ -8,10 +8,13 @@
  * 最终这里只能使用基础数据类型
  */
 
+// clang-format off
+#include "src/ebpf/ebpf_common.h"
+// clang-format on
+
 #define MAX_ARGS_CNT 10
 #define KLOG_BUFFER_SIZE (256 * 1024) // 256 KB
 #define KLOG_BUFFER_NAME "hebpf_klog"
-#define PATH_BPFFS "/sys/fs/bpf/"
 #define PATH_PIN PATH_BPFFS KLOG_BUFFER_NAME
 
 #ifdef __cplusplus

@@ -1,6 +1,6 @@
 .vscode
 build
-cmake
+cmake/CodeCoverage.cmake
 deps
 .gdbinit
 *.yaml

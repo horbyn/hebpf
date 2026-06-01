@@ -1,1 +1,1 @@
-ebpf_compile(example_usermode.bpf.c)
+ebpf_compile(example_usermode.bpf.c USERMODE KProbe)

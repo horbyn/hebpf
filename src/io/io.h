@@ -1,6 +1,7 @@
 #pragma once
 
 // clang-format off
+#include <boost/asio.hpp>
 #include "io_if.h"
 #include "src/log/logger.h"
 // clang-format on
@@ -17,6 +18,8 @@ public:
   ~Io();
 
   std::shared_ptr<void> addReadCb(int fd, IoCb callback) override;
+
+  boost::asio::io_context &getIoContext();
 
 private:
   std::unique_ptr<IoContext> impl_;

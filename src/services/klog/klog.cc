@@ -13,13 +13,13 @@ namespace klog {
 
 Klog::Klog(std::weak_ptr<io::IoIf> io_ctx, std::string_view pin_path, size_t map_size,
            std::string_view map_name)
-    : mgr_(std::make_unique<ebpf::RingbufferManager>(pin_path)), ringbuf_{} {
+    : mgr_(std::make_unique<ebpf::RingBufferMap>(pin_path)), ringbuf_{} {
 
-  ringbuf_ = mgr_->getPinningRingbuffer(
-      io_ctx,
-      ebpf::Ringbuffer::RingbufferCb{
-          FUNCTION_LINE, [this](void *data, size_t len) { return logEvent(data, len); }},
-      map_size, map_name);
+  mgr_->setMapSize(map_size);
+  mgr_->setMapName(map_name);
+  ringbuf_ = mgr_->getRingbuffer(
+      io_ctx, ebpf::Ringbuffer::RingbufferCb{
+                  FUNCTION_LINE, [this](void *data, size_t len) { return logEvent(data, len); }});
 }
 
 /**
@@ -28,7 +28,7 @@ Klog::Klog(std::weak_ptr<io::IoIf> io_ctx, std::string_view pin_path, size_t map
  */
 void Klog::unpin() {
   if (mgr_ != nullptr) {
-    mgr_->unpin();
+    mgr_->cleanup();
   }
 }
 
