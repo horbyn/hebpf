@@ -1,0 +1,2 @@
+compile_unit_test(lockfree_queue_test)
+compile_unit_test(lockfree_queue_boost_test)

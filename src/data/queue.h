@@ -5,7 +5,6 @@
 #include <condition_variable>
 #include <mutex>
 #include <queue>
-#include <optional>
 #include "queue_if.h"
 // clang-format on
 

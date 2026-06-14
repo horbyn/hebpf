@@ -1,6 +1,7 @@
 #pragma once
 
 // clang-format off
+#include <optional>
 #include "nlohmann/json.hpp"
 // clang-format on
 

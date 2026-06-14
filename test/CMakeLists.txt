@@ -1,6 +1,6 @@
 file(GLOB_RECURSE TEST_FILES 
   RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/test/*test.cc
+  ${CMAKE_SOURCE_DIR}/test/*test.cc # 单元测试可执行程序需要以 "_test" 结尾
 )
 foreach(test_file ${TEST_FILES})
   get_filename_component(test_name ${test_file} NAME_WE)
@@ -42,4 +42,5 @@ macro(compile_unit_test target_name)
   )
 endmacro()
 
+add_subdirectory(data)
 add_subdirectory(services)

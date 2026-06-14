@@ -8,9 +8,11 @@ message(STATUS "[版本]: ${PROJECT_NAME}_v${PROJECT_VERSION}")
 # 设置选项
 option(ENABLE_STATIC_LIBS "使用静态链接" ON)
 option(ENABLE_UTESTS "启用单元测试" OFF)
+option(ENABLE_BENCHMARKS "启用基准测试" OFF)
 
 # 设置全局变量
 set(EXPORT_TEST_TARGET run_coverage)
+set(EXPORT_BENCHMARK_TARGET run_benchmark)
 set(DEPS_DIR ${CMAKE_SOURCE_DIR}/deps)
 set(DEPS_BUILD_DIR ${CMAKE_BINARY_DIR}/deps)
 if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64")
@@ -294,6 +296,13 @@ if(ENABLE_UTESTS)
   add_subdirectory(test)
 endif()
 
+# 基准测试
+if(ENABLE_BENCHMARKS)
+  message(STATUS "[基准测试]: ON")
+  set(BENCHMARK_ENABLE_GTEST_TESTS OFF)
+  add_subdirectory(benchmarks)
+endif()
+
 # 编译项目
 add_compile_options(-Werror)
 add_subdirectory(src)
@@ -330,4 +339,8 @@ file(RELATIVE_PATH RELATIVE_BINARY_DIR ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR})
 message(STATUS "需要生成单元测试覆盖率报告, 执行\n"
   "\tcmake --build ${RELATIVE_BINARY_DIR} --target ${EXPORT_TEST_TARGET} -j \$(getconf _NPROCESSORS_ONLN)\n"
   "\t输出目录为 ${CMAKE_BINARY_DIR}/${EXPORT_TEST_TARGET}\n"
+)
+message(STATUS "需要生成基准测试报告, 执行\n"
+  "\tcmake --build ${RELATIVE_BINARY_DIR} --target ${EXPORT_BENCHMARK_TARGET} -j \$(getconf _NPROCESSORS_ONLN)\n"
+  "\t输出目录为 ${CMAKE_BINARY_DIR}/${EXPORT_BENCHMARK_TARGET}\n"
 )
