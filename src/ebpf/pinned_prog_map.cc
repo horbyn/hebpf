@@ -95,7 +95,7 @@ void PinnedProgMap::cleanup() {
  * @return nlohmann::json JSON 对象
  */
 nlohmann::json PinnedProgMap::getDebugStatus() {
-  nlohmann::json result{};
+  EbpfProgMap result{};
 
   {
     std::lock_guard<std::mutex> lock{mutex_};
@@ -112,8 +112,8 @@ nlohmann::json PinnedProgMap::getDebugStatus() {
         key64 = next_key64;
       } // end while(hash)
 
-      EbpfHash ebpf_hash{hash};
-      result[maps.pin_path_id_to_index] = ebpf_hash;
+      EbpfHash ebpf_hash{maps.pin_path_id_to_index, hash};
+      result.appendHash(ebpf_hash);
 
       auto array_fd = maps.prog_array_fd;
       std::vector<uint32_t> array{};
@@ -126,8 +126,8 @@ nlohmann::json PinnedProgMap::getDebugStatus() {
         }
       } // end for(array)
 
-      EbpfArray ebpf_array{array};
-      result[maps.pin_path_prog_array] = ebpf_array;
+      EbpfArray ebpf_array{maps.pin_path_prog_array, array};
+      result.appendArray(ebpf_array);
     } // end for()
   }
 

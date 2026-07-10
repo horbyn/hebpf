@@ -200,6 +200,91 @@ void Configs::setDebugServerPort(uint16_t port) { dbgserv_port_ = port; }
 uint16_t Configs::getDebugServerPort() const { return dbgserv_port_; }
 
 /**
+ * @brief 设置 loki 功能启用还是停用
+ *
+ * @param enabled 启用 true；停用 false
+ */
+void Configs::setLokiEnabled(bool enabled) { loki_enabled_ = enabled; }
+
+/**
+ * @brief 获取 loki 功能的启用停用状态
+ *
+ * @return true 启用
+ * @return false 停用
+ */
+bool Configs::getLokiEnabled() const { return loki_enabled_; }
+
+/**
+ * @brief 设置 loki 服务端地址
+ *
+ * @param host 服务端地址
+ */
+void Configs::setLokiHost(std::string_view host) { loki_host_ = std::string{host}; }
+
+/**
+ * @brief 获取 loki 服务端地址
+ *
+ * @return std::string 服务端地址
+ */
+std::string Configs::getLokiHost() const { return loki_host_; }
+
+/**
+ * @brief 设置 loki 服务端端口号
+ *
+ * @param port 服务端端口号
+ */
+void Configs::setLokiPort(uint16_t port) { loki_port_ = port; }
+
+/**
+ * @brief 获取 loki 服务端端口号
+ *
+ * @return uint16_t 服务端端口号
+ */
+uint16_t Configs::getLokiPort() const { return loki_port_; }
+
+/**
+ * @brief 设置 loki 服务端资源路径
+ *
+ * @param path 服务端资源路径
+ */
+void Configs::setLokiPath(std::string_view path) { loki_path_ = path; }
+
+/**
+ * @brief 获取 loki 服务端地址
+ *
+ * @return std::string 服务端地址
+ */
+std::string Configs::getLokiPath() const { return loki_path_; }
+
+/**
+ * @brief 设置 loki 日志批处理数量
+ *
+ * @param size 批处理数量
+ */
+void Configs::setLokiBatchSize(int size) { loki_batch_size_ = size; }
+
+/**
+ * @brief 获取 loki 日志批处理数量
+ *
+ * @return int 数量
+ */
+int Configs::getLokiBatchSize() const { return loki_batch_size_; }
+
+/**
+ * @brief 获取 loki 日志刷新间隔
+ *
+ * @param seconds 时间间隔，单位秒
+ */
+void Configs::setLokiFlushInterval(int seconds) { loki_flush_interval_ = seconds; }
+
+/**
+ * @brief 获取 loki 日志刷新间隔
+ *
+ * @return int 时间间隔，单位秒
+ */
+int Configs::getLokiFlushInterval() const { return loki_flush_interval_; }
+
+/**
  * @brief 设置 eBPF 全量配置
  *
  * @param ebpf_so eBPF 全量配置
@@ -259,7 +344,10 @@ bool Configs::operator==(const Configs &other) const {
   return prometheus_enabled_ == other.prometheus_enabled_ &&
          prometheus_listen_ == other.prometheus_listen_ &&
          dbgserv_enabled_ == other.dbgserv_enabled_ && dbgserv_addr_ == other.dbgserv_addr_ &&
-         dbgserv_port_ == other.dbgserv_port_ && ebpfs_ == other.ebpfs_;
+         dbgserv_port_ == other.dbgserv_port_ && loki_enabled_ == other.loki_enabled_ &&
+         loki_host_ == other.loki_host_ && loki_port_ == other.loki_port_ &&
+         loki_path_ == other.loki_path_ && loki_batch_size_ == other.loki_batch_size_ &&
+         loki_flush_interval_ == other.loki_flush_interval_ && ebpfs_ == other.ebpfs_;
 }
 
 bool Configs::operator!=(const Configs &other) const { return !(*this == other); }

@@ -48,6 +48,16 @@ void generateEmptyConfigFile() {
   out << YAML::Key << daemon::CONFIGS_PROM_LISTEN << YAML::Value << config.getDebugServerPort();
   out << YAML::EndMap;
 
+  out << YAML::Key << daemon::CONFIGS_LOKI << YAML::Value << YAML::BeginMap;
+  out << YAML::Key << daemon::CONFIGS_LOKI_ENABLED << YAML::Value << config.getLokiEnabled();
+  out << YAML::Key << daemon::CONFIGS_LOKI_HOST << YAML::Value << config.getLokiHost();
+  out << YAML::Key << daemon::CONFIGS_LOKI_PORT << YAML::Value << config.getLokiPort();
+  out << YAML::Key << daemon::CONFIGS_LOKI_PATH << YAML::Value << config.getLokiPath();
+  out << YAML::Key << daemon::CONFIGS_LOKI_BATCH_SIZE << YAML::Value << config.getLokiBatchSize();
+  out << YAML::Key << daemon::CONFIGS_LOKI_FLUSH_INTERVAL << YAML::Value
+      << config.getLokiFlushInterval();
+  out << YAML::EndMap;
+
   out << YAML::Newline;
   out << YAML::Comment("以下是 eBPF 程序配置");
   out << YAML::Newline;
@@ -151,7 +161,8 @@ int main(int argc, char **argv) {
       http_debug->start(configs.getDebugServerAddr(), configs.getDebugServerPort());
     }
 
-    services::klog::Klog klog{io_ctx};
+    auto klog = std::make_shared<services::klog::Klog>(io_ctx);
+    watcher->attach(klog);
 
     watcher->startWatching(daemon::CONFIGS_DEFAULT); // 开始初始化配置并启动 eBPF 程序
     daemon->setStatusQueue(queue);
@@ -172,7 +183,7 @@ int main(int argc, char **argv) {
     if (monitor != nullptr) {
       monitor->stop();
     }
-    klog.unpin();
+    klog->unpin();
 
     GLOBAL_LOG(info, "Shutting down");
   } catch (const hebpf::except::Exception &exc) {

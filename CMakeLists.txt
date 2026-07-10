@@ -319,6 +319,7 @@ target_link_libraries(${PROJECT_NAME}_core INTERFACE
   io
   klog
   log
+  loki
   monitor
   signal
   thread

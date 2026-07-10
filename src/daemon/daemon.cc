@@ -3,10 +3,11 @@
 #include <pthread.h>
 #include <algorithm>
 #include <unordered_set>
-#include "loader.h"
 #include "src/common/assert.h"
 #include "src/common/exception.h"
 #include "src/thread/thread.h"
+#include "daemon_json.h"
+#include "loader.h"
 // clang-format on
 
 namespace hebpf {
@@ -74,22 +75,22 @@ void Daemon::stop() {
  * @param out 配置文件
  */
 void Daemon::update(nlohmann::json &out) {
-  nlohmann::json obj{};
-  obj["running"] = running_.load();
+  DaemonJson obj{};
+  obj.setRunning(running_.load());
 
   {
     std::lock_guard<std::mutex> lock{queue_mutex_};
     if (status_queue_ != nullptr) {
-      obj["queue_empty"] = status_queue_->empty();
-      obj["queue_full"] = status_queue_->full();
+      obj.setQueueEmpty(status_queue_->empty());
+      obj.setQueueFull(status_queue_->full());
     }
 
     if (loader_ != nullptr) {
-      obj["Loader"] = loader_->getDebugStatus();
+      obj.setLoader(loader_->getDebugStatus());
     }
   }
 
-  out["Daemon"] = std::move(obj);
+  out[JKEY_DBGSERVER_DAEMON] = obj;
 }
 
 /**

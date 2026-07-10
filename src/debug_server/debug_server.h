@@ -12,23 +12,25 @@
 #include "src/io/io_if.h"
 #include "src/subscribe/json_publisher_if.h"
 #include "src/subscribe/yaml_subscriber_if.h"
+#include "debug_server_if.h"
 // clang-format on
 
 namespace hebpf {
 namespace debug_server {
 
+constexpr std::string_view API_PATH_DBGSERVER{"/api/debug"};
 using SubscriberList = std::vector<std::shared_ptr<subscribe::JsonSubscriberIf>>;
 
-class DebugServer : public subscribe::JsonPublisherIf,
+class DebugServer : public DebugServerIf,
+                    public subscribe::JsonPublisherIf,
                     public subscribe::YamlSubscriberIf,
                     public log::Loggable<log::Id::debug_server>,
                     public std::enable_shared_from_this<DebugServer> {
 public:
   explicit DebugServer(std::weak_ptr<io::IoIf> ioctx);
 
-  bool start(std::string_view address = daemon::DEFAULT_DBGSERV_ADDR,
-             uint16_t port = daemon::DEFAULT_DBGSERV_PORT);
-  void stop();
+  bool start(std::string_view address, uint16_t port) override;
+  void stop() override;
 
   void attach(std::shared_ptr<subscribe::JsonSubscriberIf> subscriber) override;
   void detach(std::shared_ptr<subscribe::JsonSubscriberIf> subscriber) override;

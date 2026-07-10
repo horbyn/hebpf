@@ -7,6 +7,7 @@
 #include "src/common/exception.h"
 #include "src/inotify/inotify_manager.h"
 #include "src/log/logger.h"
+#include "loader_json.h"
 // clang-format on
 
 namespace hebpf {
@@ -348,30 +349,30 @@ bool Loader::updateProgChain(HookType hook_type,
  * @param out 配置文件
  */
 nlohmann::json Loader::getDebugStatus(void) {
-  nlohmann::json arr = nlohmann::json::array();
+  LoaderJson json{};
 
   {
     std::lock_guard<std::mutex> lock{mutex_};
     for (const auto &[so_path, handle] : services_) {
-      nlohmann::json svc{};
-      svc["so_path"] = so_path;
-      svc["name"] = handle.name;
-      svc["config_path"] = handle.config;
-      svc["hook"] = enumName(handle.hook);
-      svc["ifindex"] = handle.ifindex;
+      ServiceJson svc{};
+      svc.setSoPath(so_path);
+      svc.setName(handle.name);
+      svc.setConfigPath(handle.config);
+      svc.setHook(enumName(handle.hook));
+      svc.setIfindex(handle.ifindex);
       if (handle.instance != nullptr) {
-        svc["status"] = handle.instance->getDebugStatus();
+        svc.setStatus(handle.instance->getDebugStatus());
       }
-      arr.push_back(std::move(svc));
+      json.appendService(svc);
     }
 
     auto chain = chain_mgr_.lock();
     if (chain != nullptr) {
-      arr.push_back(chain->getDebugStatus());
+      json.appendPinnedMap(chain->getDebugStatus().get<ebpf::EbpfProgMap>());
     }
   }
 
-  return arr;
+  return json;
 }
 
 /**

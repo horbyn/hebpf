@@ -36,6 +36,7 @@ enum class Id : std::uint8_t {
   hebpf,
   inotify,
   io,
+  loki,
   monitor,
   prometheus,
   signal,

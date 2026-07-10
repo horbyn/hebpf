@@ -5,6 +5,7 @@
 #include <netinet/ip.h>
 #include <sys/socket.h>
 #include "src/common/common.h"
+#include "src/loki/loki_client.h"
 // clang-format on
 
 namespace hebpf {
@@ -13,13 +14,47 @@ namespace klog {
 
 Klog::Klog(std::weak_ptr<io::IoIf> io_ctx, std::string_view pin_path, size_t map_size,
            std::string_view map_name)
-    : mgr_(std::make_unique<ebpf::RingBufferMap>(pin_path)), ringbuf_{} {
+    : mgr_(std::make_unique<ebpf::RingBufferMap>(pin_path)), ringbuf_{}, ioctx_{io_ctx} {
 
   mgr_->setMapSize(map_size);
   mgr_->setMapName(map_name);
   ringbuf_ = mgr_->getRingbuffer(
-      io_ctx, ebpf::Ringbuffer::RingbufferCb{
+      ioctx_, ebpf::Ringbuffer::RingbufferCb{
                   FUNCTION_LINE, [this](void *data, size_t len) { return logEvent(data, len); }});
+}
+
+/**
+ * @brief 更新配置文件
+ *
+ * @param config 配置文件对象
+ */
+void Klog::update(const daemon::Configs &config) {
+  bool enabled = config.getLokiEnabled();
+  if (!enabled) {
+    std::lock_guard<std::mutex> lock{loki_mutex_};
+    loki_client_.reset();
+    return;
+  }
+
+  // 创建或重新创建客户端
+  auto host = config.getLokiHost();
+  auto port = config.getLokiPort();
+  auto path = config.getLokiPath();
+  if (host.empty() || path.empty()) {
+    LOG(warn, "Loki enabled but URL is empty, disabling");
+    return;
+  }
+  int batch_size = config.getLokiBatchSize();
+  int flush_interval = config.getLokiFlushInterval();
+
+  auto new_client =
+      std::make_shared<loki::LokiClient>(ioctx_, host, port, path, batch_size, flush_interval);
+  {
+    std::lock_guard<std::mutex> lock{loki_mutex_};
+    loki_client_ = new_client;
+  }
+  LOG(info, "Loki client updated, host={}, port={}, path={}, batch={}, interval={}", host, port,
+      path, batch_size, flush_interval);
 }
 
 /**
@@ -146,28 +181,47 @@ int Klog::logEvent(void *data, size_t size) {
 
   // TODO: 这个 switch-case 写得很丑，要优化
 
+  std::map<std::string, std::string> extra_labels{};
+  std::string level_str{};
   switch (klevel) {
   case KLOG_LEVEL_TRACE:
     LOG(trace, "{}", formatted_msg);
+    level_str = "trace";
     break;
   case KLOG_LEVEL_DEBUG:
     LOG(debug, "{}", formatted_msg);
+    level_str = "debug";
     break;
   case KLOG_LEVEL_INFO:
     LOG(info, "{}", formatted_msg);
+    level_str = "info";
     break;
   case KLOG_LEVEL_WARN:
     LOG(warn, "{}", formatted_msg);
+    level_str = "warn";
     break;
   case KLOG_LEVEL_ERROR:
     LOG(error, "{}", formatted_msg);
+    level_str = "error";
     break;
   case KLOG_LEVEL_CRITICAL:
     LOG(critical, "{}", formatted_msg);
+    level_str = "critical";
     break;
   default:
     LOG(off, "{}", formatted_msg);
+    level_str = "unknown";
     break;
+  }
+  extra_labels["level"] = level_str;
+
+  std::shared_ptr<loki::LokiClientIf> client{};
+  {
+    std::lock_guard<std::mutex> lock{loki_mutex_};
+    client = loki_client_;
+  }
+  if (client != nullptr) {
+    client->push(formatted_msg, extra_labels);
   }
 
   return 0;

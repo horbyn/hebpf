@@ -21,6 +21,7 @@ namespace daemon {
 
 constexpr std::string_view NAME_DAEMON_PROD{"daemon-prod"};
 constexpr std::string_view ID_SCHEDULER_REGEX{"scheduler;{}_{}"};
+constexpr std::string_view JKEY_DBGSERVER_DAEMON{"Daemon"};
 
 class Daemon : public DaemonIf,
                public subscribe::JsonSubscriberIf,

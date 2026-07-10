@@ -6,6 +6,7 @@
 #include "src/common/assert.h"
 #include "src/common/exception.h"
 #include "src/io/io.h"
+#include "debug_server_root.h"
 // clang-format on
 
 namespace hebpf {
@@ -147,20 +148,22 @@ void DebugServer::detach(std::shared_ptr<subscribe::JsonSubscriberIf> subscriber
  * @return nlohmann::json JSON 配置
  */
 nlohmann::json DebugServer::notify(void) {
-  nlohmann::json root{};
-  root["version"] = HEBPF_VERSION;
-
+  Root root{};
+  root.setVersion(HEBPF_VERSION);
   auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-  root["build_time"] = std::ctime(&now);
+  root.setBuildTime(std::ctime(&now));
 
+  nlohmann::json json{};
   auto list = std::atomic_load_explicit(&subscriber_list_, std::memory_order_acquire);
   if (list) {
     for (const auto &sub : *list) {
       if (sub != nullptr) {
-        sub->update(root);
+        sub->update(json);
       }
     }
   }
+  root.setInfo(json);
+
   return root;
 }
 
@@ -238,7 +241,8 @@ void DebugServer::doAccept() {
                 GLOBAL_LOG(warn, "HTTP read error: {}", ec.message());
                 return;
               }
-              if (req->method() == http::verb::get && req->target() == "/api/debug") {
+              if (req->method() == http::verb::get &&
+                  req->target() == std::string{API_PATH_DBGSERVER}) {
                 auto json = self->notify();
                 self->sendResponse(std::move(*socket_ptr), http::status::ok, json.dump(2));
               } else {
