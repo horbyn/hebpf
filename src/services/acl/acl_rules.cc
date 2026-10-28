@@ -3,6 +3,7 @@
 #include "spdlog/fmt/ranges.h"
 #include "src/common/enum_name.hpp"
 #include "src/log/logger.h"
+#include "generated/ebpf_prog_map.h"
 // clang-format on
 
 namespace hebpf {
@@ -191,8 +192,8 @@ void from_json(const nlohmann::json &json, AclRulesElem &acl) {
       auto vec = enumNameList<AclRulesElem::Protocol>();
       vec.pop_back(); // UNKNOWN
       std::string desc = fmt::format("{}", fmt::join(vec, "/"));
-      GLOBAL_LOG(warn, "{} configuration error: unknown protocol \"{}\", expected {}",
-                 SERVICE_NAME_ACL, json.at(JKEY_ACL_PROTOCOL).get<std::string>(), desc);
+      GLOBAL_LOG(warn, "configuration error: unknown protocol \"{}\", expected {}",
+                 json.at(JKEY_ACL_PROTOCOL).get<std::string>(), desc);
       acl.setProtocol(AclRulesElem::Protocol::UNKNOWN);
     }
   }
@@ -204,8 +205,8 @@ void from_json(const nlohmann::json &json, AclRulesElem &acl) {
       auto vec = enumNameList<AclRulesElem::Action>();
       vec.pop_back(); // UNKNOWN
       std::string desc = fmt::format("{}", fmt::join(vec, "/"));
-      GLOBAL_LOG(warn, "{} configuration error: unknown action \"{}\", expected {}",
-                 SERVICE_NAME_ACL, json.at(JKEY_ACL_ACTION).get<std::string>(), desc);
+      GLOBAL_LOG(warn, "configuration error: unknown action \"{}\", expected {}",
+                 json.at(JKEY_ACL_ACTION).get<std::string>(), desc);
       acl.setAction(AclRulesElem::Action::UNKNOWN);
     }
   }

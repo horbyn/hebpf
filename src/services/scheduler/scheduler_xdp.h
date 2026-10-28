@@ -1,21 +1,21 @@
 #pragma once
 
 // clang-format off
+#include "src/ebpf/ebpf_with_net_hook.h"
 #include "src/services/scheduler/scheduler_xdp.skel.h"
-#include "scheduler_base.h"
 // clang-format on
 
 namespace hebpf {
 namespace services {
 namespace scheduler {
 
-constexpr std::string_view SERVICE_NAME_SCHEDULER_XDP{"scheduler_xdp"};
-
-class SchedulerXdp : public SchedulerBase<struct scheduler_xdp_bpf> {
+class SchedulerXdp : public ebpf::EbpfWithNetHook<struct scheduler_xdp_bpf> {
 public:
   explicit SchedulerXdp(std::unique_ptr<scheduler_xdp_bpf> skel = {});
 
   std::string getName() const override;
+  int getRunningFd(daemon::HookType hook_type) const override;
+  [[nodiscard]] bool onConfigUpdate(const nlohmann::json &config) override;
 };
 
 } // namespace scheduler

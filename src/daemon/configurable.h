@@ -12,7 +12,7 @@ namespace daemon {
 class Configurable {
 public:
   virtual ~Configurable() = default;
-  virtual void onConfigUpdate(HookType hook_type, int ifindex, const nlohmann::json &config) = 0;
+  [[nodiscard]] virtual bool onConfigUpdate(const nlohmann::json &config) = 0;
 };
 
 } // namespace daemon

@@ -258,11 +258,7 @@ add_custom_target(force_generate_ebpf_ids
     ${CMAKE_BINARY_DIR}/generated/ebpf_prog_map.h
   COMMENT "Force generating eBPF IDs every build"
 )
-generate_ebpf_ids(
-  ${CMAKE_SOURCE_DIR}/ebpf_id.map
-  ${CMAKE_BINARY_DIR}/generated/ebpf_ids.h
-  ${CMAKE_BINARY_DIR}/generated/ebpf_prog_map.h
-)
+generate_ebpf_ids()
 
 # 单元测试
 if(ENABLE_UTESTS)
@@ -314,6 +310,7 @@ target_link_libraries(${PROJECT_NAME}_core INTERFACE
   daemon
   debug_server
   ebpf
+  event
   fd
   inotify
   io
@@ -337,6 +334,9 @@ target_link_options(${PROJECT_NAME}
 )
 
 file(RELATIVE_PATH RELATIVE_BINARY_DIR ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR})
+message(STATUS "需要编译项目, 执行\n"
+  "\tcmake --build ${RELATIVE_BINARY_DIR} -j \$(getconf _NPROCESSORS_ONLN)\n"
+)
 message(STATUS "需要生成单元测试覆盖率报告, 执行\n"
   "\tcmake --build ${RELATIVE_BINARY_DIR} --target ${EXPORT_TEST_TARGET} -j \$(getconf _NPROCESSORS_ONLN)\n"
   "\t输出目录为 ${CMAKE_BINARY_DIR}/${EXPORT_TEST_TARGET}\n"

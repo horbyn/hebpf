@@ -127,7 +127,7 @@ void ConfigWatcher::loadConfig() {
     {
       std::lock_guard<std::mutex> lock{config_mutex_};
       if (cfg != last_config_) {
-        last_config_ = cfg;
+        last_config_ = std::move(cfg);
         changed = true;
       }
     }
@@ -135,7 +135,8 @@ void ConfigWatcher::loadConfig() {
       notify();
     }
   } catch (const std::exception &exc) {
-    GLOBAL_LOG(warn, "Failed to load config: {}", exc.what());
+    GLOBAL_LOG(error, "Failed to load config: {}", exc.what());
+    throw exc;
   }
 }
 

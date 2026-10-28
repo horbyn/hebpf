@@ -19,51 +19,17 @@ AclBase<SkelType>::AclBase(std::unique_ptr<SkelType> skel)
     : ebpf::EbpfWithNetHook<SkelType>(std::move(skel)), rules_{} {}
 
 /**
- * @brief 启动 acl
- *
- * @param io_ctx io 模块
- * @return true 成功
- * @return false 失败
- */
-template <typename SkelType>
-bool AclBase<SkelType>::start(std::weak_ptr<io::IoIf> io_ctx) {
-  if (!ebpf::EbpfSkelIf<SkelType>::start(io_ctx)) {
-    throw EXCEPT(fmt::format("Start {} service failed", this->getName()));
-  }
-
-  this->open();
-  if (this->skel_ == nullptr) {
-    return false;
-  }
-  this->load();
-  this->attach();
-
-  return true;
-}
-
-/**
- * @brief 停止 acl
- *
- */
-template <typename SkelType>
-void AclBase<SkelType>::stop() {
-  // ebpf::EbpfWithNetHook<SkelType>::detach();
-  ebpf::EbpfSkelIf<SkelType>::detach();
-
-  this->destroy();
-}
-
-/**
  * @brief 获取 ACL 程序 fd
+ * @param hook_type 绑定类型
  *
  * @return int fd
  */
 template <typename SkelType>
-int AclBase<SkelType>::getMainProgFd() const {
+int AclBase<SkelType>::getRunningFd([[maybe_unused]] daemon::HookType hook_type) const {
   if constexpr (std::is_same_v<SkelType, struct acl_bpf>) {
-    return this->skel_ ? bpf_program__fd(this->skel_->progs.hebpf_acl_tc_ingress) : -1;
+    return this->skel_ ? bpf_program__fd(this->skel_->progs.hebpf_acl_tc_ingress) : FD_INVALID;
   } else { // acl_xdp_bpf
-    return this->skel_ ? bpf_program__fd(this->skel_->progs.hebpf_acl_xdp_generic) : -1;
+    return this->skel_ ? bpf_program__fd(this->skel_->progs.hebpf_acl_xdp_generic) : FD_INVALID;
   }
 }
 
@@ -80,13 +46,12 @@ nlohmann::json AclBase<SkelType>::getDebugStatus() const {
 /**
  * @brief ACL 配置更新时触发
  *
- * @param hook_type hook 类型
- * @param ifindex 网卡索引
  * @param config ACL 配置
+ *
+ * @return true 修改成功，false 修改失败
  */
 template <typename SkelType>
-void AclBase<SkelType>::onConfigUpdate([[maybe_unused]] daemon::HookType hook_type,
-                                       [[maybe_unused]] int ifindex, const nlohmann::json &config) {
+bool AclBase<SkelType>::onConfigUpdate(const nlohmann::json &config) {
   AclRules acl_rules{};
   try {
     acl_rules = config;
@@ -156,6 +121,7 @@ void AclBase<SkelType>::onConfigUpdate([[maybe_unused]] daemon::HookType hook_ty
   } // end for()
 
   LOG(info, "Loaded {} ACL rules", success);
+  return true;
 }
 
 /**

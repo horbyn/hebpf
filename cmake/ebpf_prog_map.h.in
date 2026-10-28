@@ -4,14 +4,20 @@
 // clang-format off
 #include <string>
 #include <unordered_map>
+#include <vector>
 #include "src/daemon/configs.hpp"
 // clang-format on
 
 namespace hebpf {
+
+// clang-format off
+@PROG_NAME_CONSTANTS@
+// clang-format on
+
 namespace ebpf {
 
-struct ProgInfo {
-  int id;
+struct IdHook {
+  daemon::ProgId prog_id;
   daemon::HookType hook;
 };
 
@@ -19,10 +25,10 @@ struct ProgInfo {
  * @brief 获取编译时固定的程序名 -> ID 映射表
  *
  * @note 线程安全，只读
- * @return const std::unordered_map<std::string, ProgInfo>& 映射表
+ * @return const std::unordered_map<std::string, IdHook>& 映射表
  */
-inline const std::unordered_map<std::string, ProgInfo> &getDefaultProgMap() {
-  static const std::unordered_map<std::string, ProgInfo> map = {
+inline const std::unordered_map<std::string, IdHook> &getDefaultProgMap() {
+  static const std::unordered_map<std::string, IdHook> map = {
     // clang-format off
 
 @PROG_MAP_ENTRIES@

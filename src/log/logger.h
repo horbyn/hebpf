@@ -32,6 +32,7 @@ enum class Id : std::uint8_t {
   daemon,
   debug_server,
   ebpf,
+  event,
   fd,
   hebpf,
   inotify,

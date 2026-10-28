@@ -43,11 +43,11 @@ private:
   std::vector<uint32_t> array;
 };
 
-class EbpfProgMap final {
+class EbpfPinnedMap final {
 public:
-  explicit EbpfProgMap() = default;
-  explicit EbpfProgMap(const std::vector<EbpfHash> &hashes, const std::vector<EbpfArray> &arrays);
-  NLOHMANN_DEFINE_TYPE_INTRUSIVE(EbpfProgMap, hashes, arrays);
+  explicit EbpfPinnedMap() = default;
+  explicit EbpfPinnedMap(const std::vector<EbpfHash> &hashes, const std::vector<EbpfArray> &arrays);
+  NLOHMANN_DEFINE_TYPE_INTRUSIVE(EbpfPinnedMap, hashes, arrays);
 
   void appendHash(const EbpfHash &hash);
   void appendArray(const EbpfArray &array);

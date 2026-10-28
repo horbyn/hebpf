@@ -1,5 +1,6 @@
 // clang-format off
 #include "acl.h"
+#include "generated/ebpf_prog_map.h"
 // clang-format on
 
 namespace hebpf {
@@ -13,7 +14,7 @@ Acl::Acl(std::unique_ptr<acl_bpf> skel) : AclBase<acl_bpf>{std::move(skel)} {}
  *
  * @return std::string 名称
  */
-std::string Acl::getName() const { return std::string{SERVICE_NAME_ACL}; }
+std::string Acl::getName() const { return std::string{ACL_TC}; }
 
 } // namespace acl
 } // namespace services

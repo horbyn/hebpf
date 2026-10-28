@@ -15,7 +15,6 @@
 #define MAX_ARGS_CNT 10
 #define KLOG_BUFFER_SIZE (256 * 1024) // 256 KB
 #define KLOG_BUFFER_NAME "hebpf_klog"
-#define PATH_PIN PATH_BPFFS KLOG_BUFFER_NAME
 
 #ifdef __cplusplus
 extern "C" {

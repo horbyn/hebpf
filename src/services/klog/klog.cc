@@ -12,12 +12,9 @@ namespace hebpf {
 namespace services {
 namespace klog {
 
-Klog::Klog(std::weak_ptr<io::IoIf> io_ctx, std::string_view pin_path, size_t map_size,
-           std::string_view map_name)
-    : mgr_(std::make_unique<ebpf::RingBufferMap>(pin_path)), ringbuf_{}, ioctx_{io_ctx} {
+Klog::Klog(std::weak_ptr<io::IoIf> io_ctx, std::string_view map_name, size_t map_size)
+    : mgr_(std::make_unique<ebpf::RingBufferMap>(map_name, map_size)), ringbuf_{}, ioctx_{io_ctx} {
 
-  mgr_->setMapSize(map_size);
-  mgr_->setMapName(map_name);
   ringbuf_ = mgr_->getRingbuffer(
       ioctx_, ebpf::Ringbuffer::RingbufferCb{
                   FUNCTION_LINE, [this](void *data, size_t len) { return logEvent(data, len); }});

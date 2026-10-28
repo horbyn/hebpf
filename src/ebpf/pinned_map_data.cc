@@ -1,5 +1,5 @@
 // clang-format off
-#include "pinned_prog_map_data.h"
+#include "pinned_map_data.h"
 // clang-format on
 
 namespace hebpf {
@@ -14,7 +14,8 @@ EbpfHash::EbpfHash(std::string_view map_path, const std::vector<EbpfHashElem> &d
 EbpfArray::EbpfArray(std::string_view map_path, const std::vector<uint32_t> &data)
     : map_path{std::string{map_path}}, array{data} {}
 
-EbpfProgMap::EbpfProgMap(const std::vector<EbpfHash> &hashes, const std::vector<EbpfArray> &arrays)
+EbpfPinnedMap::EbpfPinnedMap(const std::vector<EbpfHash> &hashes,
+                             const std::vector<EbpfArray> &arrays)
     : hashes{hashes}, arrays{arrays} {}
 
 /**
@@ -22,14 +23,14 @@ EbpfProgMap::EbpfProgMap(const std::vector<EbpfHash> &hashes, const std::vector<
  *
  * @param hash 哈希表
  */
-void EbpfProgMap::appendHash(const EbpfHash &hash) { hashes.push_back(hash); }
+void EbpfPinnedMap::appendHash(const EbpfHash &hash) { hashes.push_back(hash); }
 
 /**
  * @brief 追加一个数组
  *
  * @param array 数组
  */
-void EbpfProgMap::appendArray(const EbpfArray &array) { arrays.push_back(array); }
+void EbpfPinnedMap::appendArray(const EbpfArray &array) { arrays.push_back(array); }
 
 } // namespace ebpf
 } // namespace hebpf

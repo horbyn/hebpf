@@ -37,7 +37,7 @@ std::pair<CmdlineConfig, bool> Cmdline::parse(int argc, char **argv) {
       config_.log_ = logfile_str_;
     }
 
-    return {config_, true};
+    return {std::move(config_), true};
   } catch (const CLI::ParseError &perr) {
     auto ret = app_.exit(perr);
     return ret == 0 ? std::make_pair<CmdlineConfig, bool>(CmdlineConfig{.help_ = true}, true)

@@ -6,6 +6,7 @@
 #include "src/data/kernel_data.h"
 #include "src/ebpf/ringbuffer.h"
 #include "src/fd/fd.h"
+#include "generated/ebpf_prog_map.h"
 // clang-format on
 
 namespace hebpf {
@@ -20,7 +21,7 @@ ExampleUsermodeEbpf::ExampleUsermodeEbpf(std::unique_ptr<example_usermode_bpf> s
  *
  * @return std::string 名称
  */
-std::string ExampleUsermodeEbpf::getName() const { return std::string{SERVICE_NAME_USERMODE}; }
+std::string ExampleUsermodeEbpf::getName() const { return std::string{EXAMPLE_USERMODE}; }
 
 /**
  * @brief 加载 usermode
@@ -31,7 +32,7 @@ void ExampleUsermodeEbpf::load() {
 
   auto fd = bpf_map__fd(skel_->maps.rb);
   if (fd < 0) {
-    throw EXCEPT(fmt::format("Cannot get ringbuffer fd: {}", SERVICE_NAME_USERMODE), true);
+    throw EXCEPT(fmt::format("Cannot get ringbuffer fd: {}", EXAMPLE_USERMODE), true);
   }
   ringbuff_ = std::make_unique<ebpf::Ringbuffer>(
       std::make_unique<Fd>(fd), EbpfSkelIf<example_usermode_bpf>::io_ctx_,
@@ -74,9 +75,8 @@ void ExampleUsermodeEbpf::stop() {
  *
  * @return nlohmann::json 内核数据对象
  */
-nlohmann::json ExampleUsermodeEbpf::getPrometheusStatus() const {
+nlohmann::json ExampleUsermodeEbpf::getPrometheusStatus() {
   static const std::string METRIC_NAME{"execve_total"};
-  static const std::string METRIC_COMMAND{"COMM"};
 
   Metrics metrics{};
   metrics.service_ = getName();
@@ -100,7 +100,7 @@ nlohmann::json ExampleUsermodeEbpf::getPrometheusStatus() const {
  */
 int ExampleUsermodeEbpf::onEvent(void *data, size_t data_sz) {
   if (data_sz != sizeof(struct execve_event)) {
-    GLOBAL_LOG(error, "{} eBPF cb: invalid event size: {}", SERVICE_NAME_USERMODE, data_sz);
+    GLOBAL_LOG(error, "{} eBPF cb: invalid event size: {}", EXAMPLE_USERMODE, data_sz);
     return -1;
   }
 

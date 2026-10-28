@@ -14,15 +14,14 @@ namespace ebpf {
 /**
  * @brief 管理 pinned ring buffer map
  */
-class RingBufferMap : public PinnedMapIf {
+class RingBufferMap : public PinnedMapBase {
 public:
-  explicit RingBufferMap(std::string_view pin_path);
+  explicit RingBufferMap(std::string_view map_name, size_t map_size);
 
   RingBufferMap(const RingBufferMap &) = delete;
   RingBufferMap &operator=(const RingBufferMap &) = delete;
 
   bool init() override;
-  void cleanup() override;
   nlohmann::json getDebugStatus() override;
 
   void setMapSize(size_t size);
@@ -31,11 +30,12 @@ public:
                                             Ringbuffer::RingbufferCb callback);
 
 private:
-  std::string pin_path_;
+  bpf_map_type getMapType() const override;
+  size_t getKeySize() const override;
+  size_t getValueSize() const override;
+
   std::string map_name_{};
   size_t map_size_{0};
-  int map_fd_{-1};
-  bool initialized_{false};
 };
 
 } // namespace ebpf

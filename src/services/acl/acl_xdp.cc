@@ -1,5 +1,6 @@
 // clang-format off
 #include "acl_xdp.h"
+#include "generated/ebpf_prog_map.h"
 // clang-format on
 
 namespace hebpf {
@@ -13,7 +14,7 @@ AclXdp::AclXdp(std::unique_ptr<acl_xdp_bpf> skel) : AclBase<acl_xdp_bpf>{std::mo
  *
  * @return std::string 名称
  */
-std::string AclXdp::getName() const { return std::string{SERVICE_NAME_ACL}; }
+std::string AclXdp::getName() const { return std::string{ACL_XDP_Generic}; }
 
 } // namespace acl
 } // namespace services

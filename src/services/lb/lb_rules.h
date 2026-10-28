@@ -18,8 +18,6 @@ constexpr std::string_view JKEY_LBELEM_BACKENDS{"backends"};
 constexpr std::string_view JKEY_LB_LOCAL_MAC{"local_mac"};
 constexpr std::string_view JKEY_LB_RULES{"rules"};
 
-constexpr std::string_view SERVICE_NAME_LB{"lb"};
-
 class Backends final {
 public:
   explicit Backends();

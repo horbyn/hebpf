@@ -11,7 +11,6 @@ namespace hebpf {
 namespace services {
 namespace acl {
 
-constexpr std::string_view SERVICE_NAME_ACL{"acl"};
 constexpr std::string_view ACL_ANY_IPV4{"0.0.0.0"};
 constexpr uint16_t ACL_ANY_PORT{0};
 constexpr int INVALID_IFINDEX{-1};

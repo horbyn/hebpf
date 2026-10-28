@@ -16,12 +16,9 @@ class LbBase : public ebpf::EbpfWithNetHook<SkelType> {
 public:
   explicit LbBase(std::unique_ptr<SkelType> skel = {});
 
-  bool start(std::weak_ptr<io::IoIf> io_ctx = {}) override;
-  void stop() override;
-  int getMainProgFd() const override;
+  int getRunningFd(daemon::HookType hook_type) const override;
   nlohmann::json getDebugStatus() const override;
-  void onConfigUpdate(daemon::HookType hook_type, int ifindex,
-                      const nlohmann::json &config) override;
+  [[nodiscard]] bool onConfigUpdate(const nlohmann::json &config) override;
 
 private:
   // 引入依赖基类的日志相关函数，使 LOG 宏可用

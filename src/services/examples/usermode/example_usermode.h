@@ -5,7 +5,6 @@
 #include <map>
 #include "src/ebpf/ebpf_if.h"
 #include "src/ebpf/ringbuffer_if.h"
-#include "src/log/logger.h"
 #include "src/services/examples/usermode/example_usermode.bpf.h"
 #include "src/services/examples/usermode/example_usermode.skel.h"
 // clang-format on
@@ -14,11 +13,9 @@ namespace hebpf {
 namespace services {
 namespace examples {
 
-constexpr std::string_view SERVICE_NAME_USERMODE{"example_usermode"};
 constexpr size_t MAX_EVENTS = 10240;
 
-class ExampleUsermodeEbpf : public ebpf::EbpfSkelIf<struct example_usermode_bpf>,
-                            public log::Loggable<log::Id::ebpf> {
+class ExampleUsermodeEbpf : public ebpf::EbpfSkelIf<struct example_usermode_bpf> {
 public:
   explicit ExampleUsermodeEbpf(std::unique_ptr<example_usermode_bpf> skel = {});
 
@@ -26,7 +23,7 @@ public:
   void load() override;
   bool start(std::weak_ptr<io::IoIf> io_ctx = {}) override;
   void stop() override;
-  nlohmann::json getPrometheusStatus() const override;
+  nlohmann::json getPrometheusStatus() override;
 
 private:
   int onEvent(void *data, size_t data_sz);

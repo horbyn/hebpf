@@ -2,6 +2,7 @@
 
 // clang-format off
 #include "ebpf_with_net_hook.h"
+#include "src/common/assert.h"
 #include "src/common/enum_name.hpp"
 #include "src/ebpf/tc_hook.h"
 #include "src/ebpf/xdp_hook.h"
@@ -33,16 +34,26 @@ void EbpfWithNetHook<T>::detach() {
 }
 
 /**
- * @brief 根据 hook 类型和 ifindex 创建对应的 hook 并附加程序
+ * @brief 停止程序
  *
- * @param hook_type 钩子类型 (TC, XDP_GENERIC, XDP_NATIVE, XDP_OFFLOAD)
- * @param ifindex   网络接口索引
+ */
+template <typename T>
+void EbpfWithNetHook<T>::stop() {
+  ebpf::EbpfWithNetHook<T>::detach();
+  ebpf::EbpfSkelIf<T>::stop();
+}
+
+/**
+ * @brief 根据 hook 类型和 NIC 索引创建对应的 hook 并附加程序
+ *
+ * @param hook_type 绑定类型
+ * @param id 网络接口索引
  * @return true 成功，false 失败
  */
 template <typename T>
-bool EbpfWithNetHook<T>::attachGeneric(daemon::HookType hook_type, int ifindex) {
-  if (ifindex < 0) {
-    LOG(error, "Invalid ifindex: {}", ifindex);
+bool EbpfWithNetHook<T>::attachGeneric(daemon::HookType hook_type, int id) {
+  if (id < 0) {
+    LOG(error, "Invalid ifindex: {}", id);
     return false;
   }
   if (attached_.load()) {
@@ -51,7 +62,7 @@ bool EbpfWithNetHook<T>::attachGeneric(daemon::HookType hook_type, int ifindex) 
   }
 
   auto name = this->getName();
-  auto fd = this->getMainProgFd();
+  auto fd = this->getRunningFd(hook_type);
   if (fd < 0) {
     LOG(error, "Cannot get eBPF program fd for {}", name);
     return false;
@@ -59,16 +70,10 @@ bool EbpfWithNetHook<T>::attachGeneric(daemon::HookType hook_type, int ifindex) 
 
   switch (hook_type) {
   case daemon::HookType::TC:
-    hook_ = std::make_unique<TcHook>(ifindex, TcHook::Direct::INGRESS);
+    hook_ = std::make_unique<TcHook>(id, TcHook::Direct::INGRESS);
     break;
-  case daemon::HookType::XDP_GENERIC:
-    hook_ = std::make_unique<XdpHook>(ifindex, XdpHook::Mode::XDP_GENERIC);
-    break;
-  case daemon::HookType::XDP_NATIVE:
-    hook_ = std::make_unique<XdpHook>(ifindex, XdpHook::Mode::XDP_NATIVE);
-    break;
-  case daemon::HookType::XDP_OFFLOAD:
-    hook_ = std::make_unique<XdpHook>(ifindex, XdpHook::Mode::XDP_OFFLOAD);
+  case daemon::HookType::XDP_Generic:
+    hook_ = std::make_unique<XdpHook>(id, XdpHook::Mode::XDP_GENERIC);
     break;
   default:
     LOG(error, "Unsupported hook type");
@@ -86,7 +91,7 @@ bool EbpfWithNetHook<T>::attachGeneric(daemon::HookType hook_type, int ifindex) 
     return false;
   }
 
-  ifindex_ = ifindex;
+  ifindex_ = id;
   attached_.store(true);
   LOG(debug, "Service {} attached on ifindex {}", name, ifindex_);
   return true;

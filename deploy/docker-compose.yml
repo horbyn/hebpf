@@ -5,7 +5,6 @@ services:
       dockerfile: Dockerfile
       args:
         - ARCH=aarch64
-    image: ebpf:latest
     container_name: ebpfc
     platform: linux/arm64
     privileged: true

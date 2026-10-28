@@ -20,51 +20,18 @@ LbBase<SkelType>::LbBase(std::unique_ptr<SkelType> skel)
     : ebpf::EbpfWithNetHook<SkelType>(std::move(skel)), rules_{} {}
 
 /**
- * @brief 启动 LB
- *
- * @param io_ctx io 模块
- * @return true 成功
- * @return false 失败
- */
-template <typename SkelType>
-bool LbBase<SkelType>::start(std::weak_ptr<io::IoIf> io_ctx) {
-  if (!ebpf::EbpfSkelIf<SkelType>::start(io_ctx)) {
-    throw EXCEPT(fmt::format("Start {} service failed", this->getName()));
-  }
-
-  this->open();
-  if (this->skel_ == nullptr) {
-    return false;
-  }
-  this->load();
-  this->attach();
-
-  return true;
-}
-
-/**
- * @brief 停止 LB
- *
- */
-template <typename SkelType>
-void LbBase<SkelType>::stop() {
-  // hebpf::ebpf::EbpfWithNetHook<SkelType>::detach();
-  hebpf::ebpf::EbpfSkelIf<SkelType>::detach();
-
-  this->destroy();
-}
-
-/**
  * @brief 获取 LB 程序 fd
+ * @param hook_type 绑定类型
  *
  * @return int fd
  */
 template <typename SkelType>
-int LbBase<SkelType>::getMainProgFd() const {
+int LbBase<SkelType>::getRunningFd([[maybe_unused]] daemon::HookType hook_type) const {
   if constexpr (std::is_same_v<SkelType, struct lb_xdp_bpf>) {
-    return this->skel_ != nullptr ? bpf_program__fd(this->skel_->progs.hebpf_lb_xdp_gen) : -1;
+    return this->skel_ != nullptr ? bpf_program__fd(this->skel_->progs.hebpf_lb_xdp_gen)
+                                  : FD_INVALID;
   } else {
-    return this->skel_ != nullptr ? bpf_program__fd(this->skel_->progs.hebpf_lb_tc) : -1;
+    return this->skel_ != nullptr ? bpf_program__fd(this->skel_->progs.hebpf_lb_tc) : FD_INVALID;
   }
 }
 
@@ -81,13 +48,12 @@ nlohmann::json LbBase<SkelType>::getDebugStatus() const {
 /**
  * @brief LB 配置更新时触发
  *
- * @param hook_type hook 类型
- * @param ifindex 网卡索引
  * @param config LB 配置
+ *
+ * @return true 修改成功，false 修改失败
  */
 template <typename SkelType>
-void LbBase<SkelType>::onConfigUpdate([[maybe_unused]] daemon::HookType hook_type,
-                                      [[maybe_unused]] int ifindex, const nlohmann::json &config) {
+bool LbBase<SkelType>::onConfigUpdate(const nlohmann::json &config) {
 
   decltype(rules_) lb_rules{};
   try {
@@ -169,6 +135,8 @@ void LbBase<SkelType>::onConfigUpdate([[maybe_unused]] daemon::HookType hook_typ
       }
     }
   } // end for()
+
+  return true;
 }
 
 /**

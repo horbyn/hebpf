@@ -39,8 +39,6 @@ RUN apt-get update && apt install -y --no-install-recommends ca-certificates && 
     # 安装 zsh
     git clone https://github.com/ohmyzsh/ohmyzsh.git /root/.oh-my-zsh && \
     cp /root/.oh-my-zsh/templates/zshrc.zsh-template /root/.zshrc && \
-    git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ~/.oh-my-zsh/plugins/zsh-syntax-highlighting && \
-    git clone https://github.com/zsh-users/zsh-autosuggestions ~/.oh-my-zsh/plugins/zsh-autosuggestions && \
     chsh -s $(which zsh) && \
     sed -i 's/^plugins=(git)$/plugins=(git wd zsh-syntax-highlighting zsh-autosuggestions)/' ~/.zshrc && \
     # 创建调试版 gdb

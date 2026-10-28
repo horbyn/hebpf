@@ -1,9 +1,16 @@
-# <name> <id> <hook>
-HELLO 0 KProbe
-USERMODE 1 KProbe
-ACL_TC 2 TC
-ACL_XDP_GENERIC 3 XDP_GENERIC
-SCHEDULER_TC 4 TC
-SCHEDULER_XDP_GENERIC 5 XDP_GENERIC
-LB_TC 6 TC
-LB_XDP_GENERIC 7 XDP_GENERIC
+# <name> <id> <hooks>
+# 注意, id 需要从 1 开始, 否则 CMake 判断一个为 0 的 id 会报错
+EXAMPLE_HELLO 1 KProbe
+EXAMPLE_USERMODE 2 KProbe
+ACL_TC 3 TC
+ACL_XDP_Generic 4 XDP_Generic
+SCHEDULER_TC 5 TC
+SCHEDULER_XDP_Generic 6 XDP_Generic
+LB_TC 7 TC
+LB_XDP_Generic 8 XDP_Generic
+RUNQLAT_Sched_Switch 9 Sched_Switch
+SCHEDULER_Sched_Switch 10 Sched_Switch
+RUNQLAT_Sched_Wakeup 11 Sched_Wakeup
+SCHEDULER_Sched_Wakeup 12 Sched_Wakeup
+RUNQLAT_Sched_Wakeup_New 13 Sched_Wakeup_New
+SCHEDULER_Sched_Wakeup_New 14 Sched_Wakeup_New

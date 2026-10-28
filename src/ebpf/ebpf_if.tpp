@@ -4,6 +4,7 @@
 #include "ebpf_if.h"
 #include "src/common/assert.h"
 #include "src/common/exception.h"
+#include "src/fd/fd_if.h"
 // clang-format on
 
 namespace hebpf {
@@ -13,15 +14,14 @@ template <typename T>
 EbpfSkelIf<T>::EbpfSkelIf(std::unique_ptr<T> skel) : skel_{std::move(skel)} {}
 
 template <typename T>
-EbpfSkelIf<T>::EbpfSkelIf(EbpfSkelIf &&other) noexcept : skel_{std::move(other.skel_)} {
-  other.skel_ = nullptr;
-}
+EbpfSkelIf<T>::EbpfSkelIf(EbpfSkelIf &&other) noexcept
+    : skel_{std::move(other.skel_)}, io_ctx_{std::move(other.io_ctx_)} {}
 
 template <typename T>
 EbpfSkelIf<T> &EbpfSkelIf<T>::operator=(EbpfSkelIf &&other) noexcept {
   if (this != &other) {
     skel_ = std::move(other.skel_);
-    other.skel_ = nullptr;
+    io_ctx_ = std::move(other.io_ctx_);
   }
   return *this;
 }
@@ -55,7 +55,7 @@ void EbpfSkelIf<T>::load() {
 }
 
 /**
- * @brief 将 eBPF 程序绑定到 hook
+ * @brief 将 eBPF 程序绑定到程序段
  *
  * @note 绑定失败会抛出异常
  */
@@ -102,7 +102,29 @@ bool EbpfSkelIf<T>::start(std::weak_ptr<io::IoIf> io_ctx) {
   if (io_ctx.lock() != nullptr) {
     io_ctx_ = io_ctx;
   }
-  return static_cast<bool>(io_ctx_.lock());
+  if (!static_cast<bool>(io_ctx_.lock())) {
+    return false;
+  }
+
+  this->open();
+  if (this->skel_ == nullptr) {
+    return false;
+  }
+
+  this->load();
+  this->attach();
+
+  return true;
+}
+
+/**
+ * @brief 停止程序
+ *
+ */
+template <typename T>
+void EbpfSkelIf<T>::stop() {
+  this->detach();
+  this->destroy();
 }
 
 /**
@@ -111,7 +133,7 @@ bool EbpfSkelIf<T>::start(std::weak_ptr<io::IoIf> io_ctx) {
  * @return nlohmann::json JSON 对象
  */
 template <typename T>
-nlohmann::json EbpfSkelIf<T>::getPrometheusStatus() const {
+nlohmann::json EbpfSkelIf<T>::getPrometheusStatus() {
   return nlohmann::json();
 }
 
@@ -127,26 +149,25 @@ nlohmann::json EbpfSkelIf<T>::getDebugStatus() const {
 
 /**
  * @brief 获取主 eBPF 程序的 fd（用于尾调用链）
+ * @param hook_type 绑定类型
  *
- * @return int 程序 fd, 若不存在则返回 -1
+ * @return int 程序信息数组, 若不存在则返回 FD_INVALID
  */
 template <typename T>
-int EbpfSkelIf<T>::getMainProgFd() const {
-  return -1;
+int EbpfSkelIf<T>::getRunningFd([[maybe_unused]] daemon::HookType hook_type) const {
+  return FD_INVALID;
 }
 
 /**
  * @brief 修改 eBPF 程序配置
  *
- * @param hook_type hook 类型
- * @param ifindex 网卡索引
  * @param config 配置对象
+ *
+ * @return true 修改成功，false 修改失败
  */
 template <typename T>
-void EbpfSkelIf<T>::onConfigUpdate([[maybe_unused]] daemon::HookType hook_type,
-                                   [[maybe_unused]] int ifindex,
-                                   [[maybe_unused]] const nlohmann::json &config) {
-  return;
+bool EbpfSkelIf<T>::onConfigUpdate([[maybe_unused]] const nlohmann::json &config) {
+  return true;
 }
 
 } // namespace ebpf

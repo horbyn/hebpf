@@ -73,12 +73,13 @@ int hebpf_lb_xdp_gen(struct xdp_md *ctx) {
   KLOG(KLOG_LEVEL_DEBUG, "LB DSR: VIP %A:%u -> backend MAC %x:%x:%x:%x:%x:%x", ip->daddr,
        bpf_ntohs(dport), be->mac[0], be->mac[1], be->mac[2], be->mac[3], be->mac[4], be->mac[5]);
 
-chain: {
-#ifdef THIS_ID
-  __u32 ifindex = ctx->ingress_ifindex;
-  CHAIN_NEXT(ctx, ifindex);
+chain:
+  {
+#if defined(THIS_ID)
+    __u32 ifindex = ctx->ingress_ifindex;
+    CHAIN_NEXT(ctx, XDP_Generic, ifindex);
 #endif
-}
+  }
 
   if (be != NULL) {
     return XDP_TX; // 此时目的地址已修改, 相当于单臂 LB

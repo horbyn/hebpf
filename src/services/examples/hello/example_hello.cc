@@ -2,6 +2,7 @@
 #include "example_hello.h"
 #include "src/common/assert.h"
 #include "src/common/exception.h"
+#include "generated/ebpf_prog_map.h"
 // clang-format on
 
 namespace hebpf {
@@ -16,7 +17,7 @@ ExampleHelloEbpf::ExampleHelloEbpf(std::unique_ptr<example_hello_bpf> skel)
  *
  * @return std::string 名称
  */
-std::string ExampleHelloEbpf::getName() const { return std::string{SERVICE_NAME_HELLO}; }
+std::string ExampleHelloEbpf::getName() const { return std::string{EXAMPLE_HELLO}; }
 
 /**
  * @brief 启动 hello

@@ -9,4 +9,5 @@ target_link_libraries(ebpf
   ${LIBBPF_LIBRARIES}
   ${ELF_LIBRARY}
   ${Z_LIBRARY}
+  config_json
 )

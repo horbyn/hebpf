@@ -10,60 +10,29 @@
 namespace hebpf {
 namespace ebpf {
 
-RingBufferMap::RingBufferMap(std::string_view pin_path) : pin_path_{std::string{pin_path}} {}
+RingBufferMap::RingBufferMap(std::string_view map_name, size_t map_size) {
+  setMapName(map_name);
+  setMapSize(map_size);
+}
 
 /**
  * @brief 初始化公共 map，若已存在则打开，否则创建并 pin
  * @return true 成功，false 失败
  */
 bool RingBufferMap::init() {
-  ASSERT(!pin_path_.empty());
+  if (initialized_.load()) {
+    return true;
+  }
+
   ASSERT(!map_name_.empty());
   ASSERT(map_size_ > 0);
 
-  ensureBpffsMounted();
-
-  map_fd_ = bpf_obj_get(pin_path_.c_str());
-  if (map_fd_ >= 0) {
-    // 已存在 pinned map
-  } else if (errno == ENOENT) {
-    // 不存在，创建并 pin
-    map_fd_ = bpf_map_create(BPF_MAP_TYPE_RINGBUF, map_name_.c_str(), 0, 0, map_size_, nullptr);
-    if (map_fd_ < 0) {
-      LOG(error, "bpf_map_create failed for {}: {}", map_name_, strerror(errno));
-      return false;
-    }
-    if (bpf_obj_pin(map_fd_, pin_path_.c_str()) < 0) {
-      LOG(error, "bpf_obj_pin failed for {}: {}", pin_path_, strerror(errno));
-      close(map_fd_);
-      map_fd_ = -1;
-      return false;
-    }
-  } else {
-    LOG(error, "bpf_obj_get failed for {}: {}", pin_path_, strerror(errno));
+  if (!createPinnedInfo(map_name_, map_size_)) {
     return false;
   }
 
-  ASSERT(map_fd_ > 0);
-
-  initialized_ = true;
+  initialized_.store(true);
   return true;
-}
-
-/**
- * @brief 从文件系统中删除 pinned map
- */
-void RingBufferMap::cleanup() {
-  if (map_fd_ >= 0) {
-    close(map_fd_);
-    map_fd_ = -1;
-  }
-  if (pin_path_.empty() == false) {
-    if (unlink(pin_path_.c_str()) != 0 && errno != ENOENT) {
-      LOG(warn, "Failed to unlink {}: {}", pin_path_, strerror(errno));
-    }
-  }
-  initialized_ = false;
 }
 
 /**
@@ -96,17 +65,38 @@ void RingBufferMap::setMapName(std::string_view name) { map_name_ = std::string{
  */
 std::unique_ptr<Ringbuffer> RingBufferMap::getRingbuffer(std::weak_ptr<io::IoIf> io_ctx,
                                                          Ringbuffer::RingbufferCb callback) {
-  if (initialized_ == false) {
+  if (initialized_.load() == false) {
     if (!init()) {
       throw EXCEPT("Object initialization failed");
     }
   }
 
-  auto rb =
-      std::make_unique<Ringbuffer>(std::make_unique<Fd>(map_fd_), io_ctx, std::move(callback));
+  auto rb = std::make_unique<Ringbuffer>(std::make_unique<Fd>(getPinnedFd()), io_ctx,
+                                         std::move(callback));
   rb->init();
   return rb;
 }
+
+/**
+ * @brief 获取 map 类型
+ *
+ * @return bpf_map_type 类型
+ */
+bpf_map_type RingBufferMap::getMapType() const { return BPF_MAP_TYPE_RINGBUF; }
+
+/**
+ * @brief 获取 key 大小
+ *
+ * @return size_t 大小
+ */
+size_t RingBufferMap::getKeySize() const { return 0; }
+
+/**
+ * @brief 获取 value 大小
+ *
+ * @return size_t 大小
+ */
+size_t RingBufferMap::getValueSize() const { return 0; }
 
 } // namespace ebpf
 } // namespace hebpf

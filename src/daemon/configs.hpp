@@ -6,8 +6,10 @@
 #include <string_view>
 #include <unordered_map>
 #include <vector>
-#include "yaml-cpp/yaml.h"
+#include "nlohmann/json.hpp"
 #include "spdlog/fmt/ranges.h"
+#include "yaml-cpp/yaml.h"
+#include "generated/ebpf_hook_type.h"
 #include "src/common/enum_name.hpp"
 #include "src/log/logger.h"
 #include "hebpf_version.h"
@@ -15,6 +17,9 @@
 
 namespace hebpf {
 namespace daemon {
+
+using HookId = int;
+using ProgId = int;
 
 constexpr std::string_view CONFIGS_DEFAULT{HEBPF_PROJECT ".yaml"};
 
@@ -37,9 +42,10 @@ constexpr std::string_view CONFIGS_LOKI_FLUSH_INTERVAL{"flush_interval"};
 constexpr std::string_view CONFIGS_EBPFSO{"ebpf"};
 constexpr std::string_view CONFIGS_EBPF_LIB{"lib"};
 constexpr std::string_view CONFIGS_EBPF_CONFIG{"config"};
-constexpr std::string_view CONFIGS_EBPF_HOOK{"hook"};
 constexpr std::string_view CONFIGS_EBPF_IFINDEX{"ifindex"};
 constexpr std::string_view CONFIGS_EBPF_ORDER{"order"};
+constexpr std::string_view CONFIGS_EBPF_PROGID{"program_id"};
+constexpr std::string_view CONFIGS_EBPF_NAME{"name"};
 
 constexpr std::string_view DEFAULT_PROM_LISTEN{"0.0.0.0:8080"};
 constexpr std::string_view DEFAULT_DBGSERV_ADDR{"127.0.0.1"};
@@ -47,13 +53,22 @@ constexpr uint16_t DEFAULT_DBGSERV_PORT{9999};
 constexpr std::string_view DEFAULT_LOKI_HOST{"localhost"};
 constexpr uint16_t DEFAULT_LOKI_PORT{3100};
 constexpr std::string_view DEFAULT_LOKI_PATH{"loki/api/v1/push"};
+constexpr HookId ID_NONNETWORK_HOOK = 0;
+constexpr std::string_view ID_SCHEDULER_PREFIX{"SCHEDULER"};
 
-enum class HookType : uint8_t { TC, XDP_GENERIC, XDP_NATIVE, XDP_OFFLOAD, KProbe, UNKNOWN };
+// TODO: Scheduler 动态库路径需要更灵活给出
+constexpr std::string_view SCHEDULER_XDP_LIB{
+    "build/src/services/scheduler/libhebpf_scheduler_xdp_generic.so"};
+constexpr std::string_view SCHEDULER_TC_LIB{
+    "build/src/services/scheduler/libhebpf_scheduler_tc.so"};
+constexpr std::string_view SCHEDULER_SCHED_SWITCH_LIB{
+    "build/src/services/scheduler/libhebpf_scheduler_sched_switch.so"};
 
-class ConfigEbpf final : public log::Loggable<log::Id::daemon> {
+class ConfigEbpf {
 public:
-  ConfigEbpf();
-  ConfigEbpf(std::string_view lib, std::string_view config, HookType hook, int ifindex, int order);
+  explicit ConfigEbpf();
+  explicit ConfigEbpf(std::string_view lib, std::string_view config, int ifindex, int order,
+                      ProgId prog_id, std::string_view name);
 
   void setLib(std::string_view lib);
   std::string getLib() const;
@@ -61,34 +76,50 @@ public:
   void setConfig(std::string_view config);
   std::string getConfig() const;
 
-  void setHook(HookType hook);
-  HookType getHook() const noexcept;
-
   void setIfindex(int ifindex);
   int getIfindex() const noexcept;
 
   void setOrder(int order);
   int getOrder() const noexcept;
 
+  void setProgId(ProgId prog_id);
+  ProgId getProgId() const noexcept;
+
+  void setName(std::string_view name);
+  std::string getName() const;
+
   bool operator==(const ConfigEbpf &other) const;
   bool operator!=(const ConfigEbpf &other) const;
+
+  static std::string getSchedulerName(HookType hook_type);
+  static bool isScheduler(std::string_view name);
+  static bool isNetworkHook(HookType hook_type) noexcept;
+
+  friend void from_json(const nlohmann::json &json, ConfigEbpf &config);
+  friend void to_json(nlohmann::json &json, const ConfigEbpf &config);
 
 private:
   std::string lib_;
   std::string config_;
-  HookType hook_;
   int ifindex_;
   int order_;
+  ProgId prog_id_;   // 不对外暴露（yaml 配置不转换）
+  std::string name_; // 不对外暴露（yaml 配置不转换）
 };
+
+using ConfigEbpfPtr = std::shared_ptr<ConfigEbpf>;
 
 class Configs final : public log::Loggable<log::Id::daemon> {
 public:
-  using EbpfMap = std::map<std::string, ConfigEbpf>;
+  using EbpfMap = std::map<std::string, ConfigEbpfPtr>;
 
   Configs() = default;
   Configs(std::string_view configs_path);
 
-  static Configs loadFromConfig(std::string_view filepath);
+  Configs(const Configs &other);
+  Configs &operator=(const Configs &other);
+  Configs(Configs &&) noexcept = default;
+  Configs &operator=(Configs &&) noexcept = default;
 
   void setPrometheusEnabled(bool enabled);
   bool getPrometheusEnabled() const;
@@ -126,12 +157,19 @@ public:
   void setEbpfs(const EbpfMap &ebpf_so);
   EbpfMap getEbpfs() const;
 
-  void appendEbpf(std::string_view name, std::string_view lib, std::string_view config,
-                  HookType hook, int ifindex, int order);
+  void appendEbpf(std::string_view name, std::string_view lib, std::string_view config, int ifindex,
+                  int order, ProgId prog_id, std::string_view prog_name);
   void deleteEbpf(std::string_view name);
 
   bool operator==(const Configs &other) const;
   bool operator!=(const Configs &other) const;
+
+  static Configs loadFromConfig(std::string_view filepath);
+  template <typename Comparator, typename IgnorePred>
+  static bool compareEbpfMap(const Configs::EbpfMap &lhs, const Configs::EbpfMap &rhs,
+                             Comparator comp, IgnorePred ignore);
+  template <typename Func, typename IgnorePred>
+  static void traversalEbpfMap(const EbpfMap &map, Func func, IgnorePred ignore);
 
 private:
   bool prometheus_enabled_{false};
@@ -145,11 +183,13 @@ private:
   std::string loki_path_{std::string{DEFAULT_LOKI_PATH}};
   int loki_batch_size_{100};
   int loki_flush_interval_{5};
-  EbpfMap ebpfs_{{"example", ConfigEbpf{}}};
+  EbpfMap ebpfs_{};
 };
 
 } // namespace daemon
 } // namespace hebpf
+
+#include "configs.tpp"
 
 namespace YAML {
 
@@ -159,7 +199,6 @@ struct convert<hebpf::daemon::ConfigEbpf> {
     Node node{};
     node[hebpf::daemon::CONFIGS_EBPF_LIB] = conf.getLib();
     node[hebpf::daemon::CONFIGS_EBPF_CONFIG] = conf.getConfig();
-    node[hebpf::daemon::CONFIGS_EBPF_HOOK] = std::string{hebpf::enumName(conf.getHook())};
     node[hebpf::daemon::CONFIGS_EBPF_IFINDEX] = conf.getIfindex();
     node[hebpf::daemon::CONFIGS_EBPF_ORDER] = conf.getOrder();
     return node;
@@ -171,21 +210,6 @@ struct convert<hebpf::daemon::ConfigEbpf> {
     }
     if (node[hebpf::daemon::CONFIGS_EBPF_CONFIG]) {
       conf.setConfig(node[hebpf::daemon::CONFIGS_EBPF_CONFIG].as<std::string>());
-    }
-    if (node[hebpf::daemon::CONFIGS_EBPF_HOOK]) {
-      auto hook_opt = hebpf::stringEnum<hebpf::daemon::HookType>(
-          node[hebpf::daemon::CONFIGS_EBPF_HOOK].as<std::string>());
-      if (hook_opt) {
-        conf.setHook(*hook_opt);
-      } else {
-        auto vec = hebpf::enumNameList<hebpf::daemon::HookType>();
-        vec.pop_back(); // UNKNOWN
-        std::string desc = fmt::format("{}", fmt::join(vec, "/"));
-        // TODO: 整合到日志系统
-        fprintf(stderr, "Configuration error: unknown hook \"%s\", expected %s\n",
-                node[hebpf::daemon::CONFIGS_EBPF_HOOK].as<std::string>().c_str(), desc.c_str());
-        conf.setHook(hebpf::daemon::HookType::UNKNOWN);
-      }
     }
     if (node[hebpf::daemon::CONFIGS_EBPF_IFINDEX]) {
       conf.setIfindex(node[hebpf::daemon::CONFIGS_EBPF_IFINDEX].as<int>());
@@ -223,7 +247,13 @@ struct convert<hebpf::daemon::Configs> {
 
     auto vector = conf.getEbpfs();
     if (!vector.empty()) {
-      node[hebpf::daemon::CONFIGS_EBPFSO] = vector;
+      Node ebpfNode{};
+      for (const auto &[name, ptr] : vector) {
+        if (ptr != nullptr) {
+          ebpfNode[name] = *ptr;
+        }
+      }
+      node[hebpf::daemon::CONFIGS_EBPFSO] = ebpfNode;
     }
     return node;
   }
@@ -272,7 +302,14 @@ struct convert<hebpf::daemon::Configs> {
       }
     }
     if (node[hebpf::daemon::CONFIGS_EBPFSO]) {
-      conf.setEbpfs(node[hebpf::daemon::CONFIGS_EBPFSO].as<hebpf::daemon::Configs::EbpfMap>());
+      hebpf::daemon::Configs::EbpfMap map{};
+      auto ebpf_node = node[hebpf::daemon::CONFIGS_EBPFSO];
+      for (const auto &kv : ebpf_node) {
+        hebpf::daemon::ConfigEbpf value = kv.second.as<hebpf::daemon::ConfigEbpf>();
+        map[kv.first.as<std::string>()] =
+            std::make_shared<hebpf::daemon::ConfigEbpf>(std::move(value));
+      }
+      conf.setEbpfs(map);
     }
     return true;
   }

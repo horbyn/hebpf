@@ -82,9 +82,9 @@ int hebpf_acl_xdp_generic(struct xdp_md *ctx) {
   KLOG(KLOG_LEVEL_DEBUG, "Hebpf packet [%P]: %A:%u -> %A:%u", tuple.protocol, tuple.saddr,
        bpf_ntohs(origin_src_port), tuple.daddr, bpf_ntohs(tuple.dport));
 
-#ifdef THIS_ID
+#if defined(THIS_ID)
   __u32 ifindex = ctx->ingress_ifindex;
-  CHAIN_NEXT(ctx, ifindex);
+  CHAIN_NEXT(ctx, XDP_Generic, ifindex);
 #endif
   return XDP_PASS;
 }

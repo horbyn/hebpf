@@ -1,4 +1,15 @@
-macro(ebpf_compile source prog_name hook_type)
+# ebpf_compile() 宏定义
+# 功能: 编译一个给定的 eBPF 程序
+# 参数一 source: 表示要编译的 eBPF 源文件的名称, 如 example.bpf.c
+# 参数二 id_map_first_column: 需要与 id.map 文件的第一列属性保持一致, 即这个要编译的 eBPF 程序是实现了 id.map 某一行的定义
+macro(ebpf_compile source id_map_first_column)
+  get_property(prog_id GLOBAL PROPERTY EBPF_PROG_ID_${id_map_first_column})
+  if(NOT prog_id)
+    message(FATAL_ERROR "    Program '${id_map_first_column}' not found in ebpf_id.map, "
+                        "which from the first column of ebpf_id.map file\n"
+                        "    Please add an entry in ebpf_id.map before calling ebpf_compile().")
+  endif()
+
   get_filename_component(source_file ${source} NAME_WE)
 
   set(TEMP_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/${source_file}_tmp.bpf.c")
@@ -7,8 +18,7 @@ macro(ebpf_compile source prog_name hook_type)
   add_custom_command(
     OUTPUT ${TEMP_SOURCE}
     COMMAND ${CMAKE_COMMAND} -E echo "#include \"generated/ebpf_ids.h\"" > ${TEMP_SOURCE}
-    COMMAND ${CMAKE_COMMAND} -E echo "#define THIS_ID EBPF_ID_${prog_name}" >> ${TEMP_SOURCE}
-    COMMAND ${CMAKE_COMMAND} -E echo "#define HOOK_TYPE ${hook_type}" >> ${TEMP_SOURCE}
+    COMMAND ${CMAKE_COMMAND} -E echo "#define THIS_ID EBPF_ID_${id_map_first_column}" >> ${TEMP_SOURCE}
     COMMAND ${CMAKE_COMMAND} -E echo "" >> ${TEMP_SOURCE}
     COMMAND ${CMAKE_COMMAND} -E cat ${ABS_SOURCE} >> ${TEMP_SOURCE}
     VERBATIM
@@ -56,7 +66,8 @@ macro(ebpf_compile source prog_name hook_type)
   target_link_libraries(${OUTPUT_TARGET} INTERFACE ${LIBBPF_LIBRARIES} -lelf -lz)
   add_dependencies(${OUTPUT_TARGET} libbpf-build bpftool-build)
 
-  set(LIB_NAME ${PROJECT_NAME}_${source_file})
+  string(TOLOWER "${id_map_first_column}" id_lower)
+  set(LIB_NAME ${PROJECT_NAME}_${id_lower})
   add_library(${LIB_NAME}
     SHARED # hebpf 项目的动态加载机制需要将 eBPF 程序编译为动态库
     ${source_file}.cc
@@ -78,4 +89,5 @@ add_subdirectory(acl)
 add_subdirectory(examples)
 add_subdirectory(klog)
 add_subdirectory(lb)
+add_subdirectory(runqlat)
 add_subdirectory(scheduler)

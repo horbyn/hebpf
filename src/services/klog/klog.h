@@ -16,8 +16,8 @@ namespace klog {
 
 class Klog : public log::Loggable<log::Id::ebpf>, public subscribe::YamlSubscriberIf {
 public:
-  explicit Klog(std::weak_ptr<io::IoIf> io_ctx, std::string_view pin_path = PATH_PIN,
-                size_t map_size = KLOG_BUFFER_SIZE, std::string_view map_name = KLOG_BUFFER_NAME);
+  explicit Klog(std::weak_ptr<io::IoIf> io_ctx, std::string_view map_name = KLOG_BUFFER_NAME,
+                size_t map_size = KLOG_BUFFER_SIZE);
 
   Klog(const Klog &) = delete;
   Klog &operator=(const Klog &) = delete;

@@ -7,9 +7,9 @@
 SEC("xdp")
 int hebpf_scheduler_xdp_gen(struct xdp_md *ctx) {
 
-#ifdef THIS_ID
+#if defined(THIS_ID)
   __u32 ifindex = ctx->ingress_ifindex;
-  CHAIN_NEXT(ctx, ifindex);
+  CHAIN_NEXT(ctx, XDP_Generic, ifindex);
 #endif
 
   return XDP_PASS;

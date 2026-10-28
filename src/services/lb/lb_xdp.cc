@@ -1,5 +1,6 @@
 // clang-format off
 #include "lb_xdp.h"
+#include "generated/ebpf_prog_map.h"
 // clang-format on
 
 namespace hebpf {
@@ -13,7 +14,7 @@ LbXdp::LbXdp(std::unique_ptr<lb_xdp_bpf> skel) : LbBase(std::move(skel)) {}
  *
  * @return std::string 名称
  */
-std::string LbXdp::getName() const { return std::string{SERVICE_NAME_LB}; }
+std::string LbXdp::getName() const { return std::string{LB_XDP_Generic}; }
 
 } // namespace lb
 } // namespace services

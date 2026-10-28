@@ -123,10 +123,8 @@ void MonitorSubscriber::consumeLoop() noexcept {
       }
 
       Metrics metrics = status_opt.value();
-      std::string service_name = metrics.service_;
       const auto &vec = metrics.metrics_;
       for (const auto &elem : vec) {
-        using namespace services::examples;
 
         std::shared_ptr<MonitorIf> mon{};
         {
@@ -138,9 +136,21 @@ void MonitorSubscriber::consumeLoop() noexcept {
         }
 
         KernelData event = elem;
-        mon->incrementCounter(event.name_, event.labels_, event.value_);
+        switch (event.type_) {
+        case MetricType::COUNTER:
+          mon->incrementCounter(event.name_, event.labels_, event.value_);
+          break;
+        case MetricType::GAUGE:
+          mon->setGauge(event.name_, event.labels_, event.value_);
+          break;
+        case MetricType::HISTOGRAM:
+          mon->observeHistogram(event.name_, event.labels_, event.value_, event.buckets_);
+          break;
+        default:
+          GLOBAL_LOG(warn, "Unknown metric type for metric '{}'", event.name_);
+          break;
+        }
       } // end for()
-
     } // end while()
   } catch (const except::Exception &exc) {
     GLOBAL_LOG(error, "MonitorSubscriber consumer exception: {}\n{}", exc.what(), exc.stackFrame());

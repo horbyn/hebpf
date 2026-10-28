@@ -9,9 +9,9 @@
 SEC("tc")
 int hebpf_scheduler_tc_ingress(struct __sk_buff *skb) {
 
-#ifdef THIS_ID
+#if defined(THIS_ID)
   __u32 ifindex = skb->ifindex;
-  CHAIN_NEXT(skb, ifindex);
+  CHAIN_NEXT(skb, TC, ifindex);
 #endif
 
   return TC_ACT_OK;

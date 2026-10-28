@@ -36,7 +36,7 @@ void Monitor::incrementCounter(std::string_view name,
   if (it == counters_.end()) {
     auto &family = prometheus::BuildCounter()
                        .Name(std::string{name})
-                       .Help("auto-generated from eBPF service")
+                       .Help("eBPF counter metric")
                        .Register(*registry_);
     auto &counter = family.Add(labels);
     counters_.emplace(key, std::ref(counter));
@@ -47,18 +47,76 @@ void Monitor::incrementCounter(std::string_view name,
 }
 
 /**
- * @brief 根据哈希表转换为一个 key
- * @note 这个 key 的来源是一个哈希表的数据，如 abc{a=1,b=2}，
- * 这里形参用 map 就是为了让 key 总是有序，即总是 abc{a=1,b=2}，
- * 而不会有时候变成 abc{b=2,a=1}，从而保证同一个哈希表转换的 key 总是唯一的
+ * @brief 记录一次 Histogram 观测
  *
- * @param name
- * @param labels
- * @return std::string
+ * @param name   指标名
+ * @param labels 标签
+ * @param value  本次观测值（与桶单位一致）
+ * @param buckets 桶边界（升序）；同名同标签的桶必须一致
  */
+void Monitor::observeHistogram(std::string_view name,
+                               const std::map<std::string, std::string> &labels, double value,
+                               const std::vector<double> &buckets) {
+  ASSERT(registry_ != nullptr);
+  if (buckets.empty()) {
+    throw EXCEPT("histogram buckets must not be empty");
+  }
+
+  std::lock_guard<std::mutex> lock{mutex_};
+  auto key = makeKey(name, labels);
+  if (key.empty()) {
+    throw EXCEPT("invalid key");
+  }
+
+  auto it = histograms_.find(key);
+  if (it == histograms_.end()) {
+    auto &family = prometheus::BuildHistogram()
+                       .Name(std::string{name})
+                       .Help("eBPF histogram metric")
+                       .Register(*registry_);
+    // 同名同标签首次创建时确定桶边界；后续调用忽略 buckets 参数
+    auto &histogram = family.Add(labels, buckets);
+    histograms_.emplace(key, std::ref(histogram));
+    histogram.Observe(value);
+  } else {
+    it->second.get().Observe(value);
+  }
+}
+
+/**
+ * @brief 设置 Gauge 当前值
+ *
+ * @param name 指标名
+ * @param labels 标签
+ * @param value 本次观测值
+ */
+void Monitor::setGauge(std::string_view name, const std::map<std::string, std::string> &labels,
+                       double value) {
+  ASSERT(registry_ != nullptr);
+
+  std::lock_guard<std::mutex> lock{mutex_};
+  auto key = makeKey(name, labels);
+  if (key.empty()) {
+    throw EXCEPT("invalid key");
+  }
+
+  auto it = gauges_.find(key);
+  if (it == gauges_.end()) {
+    auto &family = prometheus::BuildGauge()
+                       .Name(std::string{name})
+                       .Help("eBPF gauge metric")
+                       .Register(*registry_);
+    auto &gauge = family.Add(labels);
+    gauges_.emplace(key, std::ref(gauge));
+    gauge.Set(value);
+  } else {
+    it->second.get().Set(value);
+  }
+}
+
 std::string Monitor::makeKey(std::string_view name,
                              const std::map<std::string, std::string> &labels) const {
-  // TODO: 如果 labes 数据量很大, map 可能会很耗时
+  // std::map 天然有序，保证同名同标签的 key 始终唯一
   std::ostringstream oss{};
   oss << name;
   for (const auto &[k, v] : labels) {

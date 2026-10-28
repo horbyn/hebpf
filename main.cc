@@ -10,12 +10,13 @@
 #include "src/common/enum_name.hpp"
 #include "src/common/exception.h"
 #include "src/daemon/configs.hpp"
+#include "src/daemon/config_manager.h"
 #include "src/daemon/config_watcher.h"
 #include "src/daemon/daemon.h"
-#include "src/daemon/loader.h"
 #include "src/data/queue.h"
 #include "src/debug_server/debug_server.h"
-#include "src/ebpf/pinned_prog_map.h"
+#include "src/ebpf/ebpf_manager.h"
+#include "src/event/event_bus.h"
 #include "src/inotify/inotify_manager.h"
 #include "src/io/io.h"
 #include "src/monitor/monitor.h"
@@ -32,7 +33,12 @@
 void generateEmptyConfigFile() {
   using namespace hebpf;
 
+  daemon::Configs::EbpfMap ebpfs{};
+  ebpfs.emplace("example",
+                std::make_shared<daemon::ConfigEbpf>("/path/to/libhebpf_xx.so",
+                                                     "/path/to/config.json", -1, 0, 0, "example"));
   daemon::Configs config{};
+  config.setEbpfs(ebpfs);
 
   YAML::Emitter out{};
   out << YAML::BeginMap;
@@ -61,13 +67,13 @@ void generateEmptyConfigFile() {
   out << YAML::Newline;
   out << YAML::Comment("以下是 eBPF 程序配置");
   out << YAML::Newline;
-  out << YAML::Comment("  # hook 字段可取值: [TC, XDP_GENERIC, XDP_NATIVE, XDP_OFFLOAD]");
-  out << YAML::Newline;
 
   auto ebpf_vec = config.getEbpfs();
   if (!ebpf_vec.empty()) {
     YAML::Node node{};
-    node = ebpf_vec;
+    for (const auto &[name, ptr] : ebpf_vec) {
+      node[name] = *ptr;
+    }
     out << YAML::Key << daemon::CONFIGS_EBPFSO << YAML::Value << node;
   }
   out << YAML::EndMap;
@@ -120,23 +126,22 @@ int main(int argc, char **argv) {
     auto inotify = std::make_shared<inotify::InotifyManager>();
     inotify->initManager(io_ctx);
 
-    auto chain_mgr = std::make_shared<ebpf::PinnedProgMap>();
-    if (!chain_mgr->init()) {
-      throw EXCEPT("Failed to initialize program chain manager");
+    auto event_bus = std::make_shared<event::EventBus>();
+    if (event_bus == nullptr) {
+      throw EXCEPT("Failed to create event bus");
     }
 
-    auto loader = std::make_unique<daemon::Loader>();
-    if (!loader->setIoContext(io_ctx)) {
+    auto ebpf_manager = std::make_unique<ebpf::EbpfManager>(event_bus);
+    if (!ebpf_manager->setIoContext(io_ctx)) {
       throw EXCEPT("Failed to setup io context");
     }
-    if (!loader->setInotifyManager(inotify)) {
+    if (!ebpf_manager->setInotifyManager(inotify)) {
       throw EXCEPT("Failed to setup inotify manager");
     }
-    if (!loader->setProgChainManager(chain_mgr)) {
-      throw EXCEPT("Failed to setup program chain manager");
-    }
-
-    auto daemon = std::make_shared<daemon::Daemon>(std::move(loader));
+    auto daemon = std::make_shared<daemon::Daemon>(
+        std::make_unique<daemon::ConfigManager>(event_bus),
+        std::make_unique<ebpf::Region>(event_bus), std::move(ebpf_manager),
+        std::make_unique<ebpf::PinnedMapManager>(event_bus));
     auto watcher = std::make_shared<daemon::ConfigWatcher>(inotify);
     watcher->attach(daemon);
 
@@ -145,7 +150,7 @@ int main(int argc, char **argv) {
       throw EXCEPT("Failed to setup status queue");
     }
 
-    daemon::Configs configs = cmd_config.config_;
+    daemon::Configs configs = std::move(cmd_config.config_);
     auto monitor =
         std::make_shared<monitor::MonitorSubscriber>(std::make_unique<monitor::MonitorFactory>());
     watcher->attach(monitor);
@@ -157,6 +162,7 @@ int main(int argc, char **argv) {
     auto http_debug = std::make_shared<debug_server::DebugServer>(io_ctx);
     watcher->attach(http_debug);
     http_debug->attach(daemon);
+    http_debug->attach(event_bus);
     if (configs.getDebugServerEnabled()) {
       http_debug->start(configs.getDebugServerAddr(), configs.getDebugServerPort());
     }
