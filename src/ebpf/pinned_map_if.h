@@ -3,6 +3,7 @@
 // clang-format off
 #include <bpf/bpf.h>
 #include <atomic>
+#include <memory>
 #include <string>
 #include "nlohmann/json.hpp"
 #include "src/daemon/configs.hpp"
@@ -40,13 +41,16 @@ constexpr std::string_view MAP_NAME_ID_TO_INDEX{HEBPF_PROJECT "_idhash"};
  */
 class PinnedMapBase : public PinnedMapIf {
 public:
-  virtual ~PinnedMapBase();
+  explicit PinnedMapBase();
+  virtual ~PinnedMapBase() = default;
+
+  PinnedMapBase(const PinnedMapBase &other);
+  PinnedMapBase &operator=(const PinnedMapBase &other);
 
   int getPinnedFd() const noexcept;
   std::string getPinnedPath() const;
 
   bool createPinnedInfo(std::string_view name, size_t map_size);
-  void cleanup();
 
 protected:
   virtual bpf_map_type getMapType() const = 0;
@@ -56,9 +60,14 @@ protected:
   std::atomic<bool> initialized_{false};
 
 private:
-  std::string name_;   // pinned map 名称
-  int fd_{FD_INVALID}; // pinned map fd
-  std::string path_;   // pinned map 路径
+  struct Resource {
+    int fd_{FD_INVALID};
+    std::string path_{};
+    ~Resource(); // 析构时自动 close 和 unlink
+  };
+
+  std::string name_; // pinned map 名称
+  std::shared_ptr<Resource> res_;
 };
 
 } // namespace ebpf

@@ -27,7 +27,10 @@ void to_json(nlohmann::json &json, const ServiceMap &map) {
     if (daemon::ConfigEbpf::isScheduler(key.name)) {
       continue;
     }
-    json[key.name] = ebpf.instance->getDebugStatus();
+    auto status = ebpf.instance->getDebugStatus();
+    if (!status.empty()) {
+      json[key.name] = status;
+    }
   }
 }
 

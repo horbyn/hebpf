@@ -44,12 +44,3 @@ bool SchedulerTc::onConfigUpdate(const nlohmann::json &config) {
 } // namespace scheduler
 } // namespace services
 } // namespace hebpf
-
-/**
- * @brief 动态库导出接口：用来返回 eBPF 对象
- *
- * @return std::unique_ptr<hebpf::ebpf::EbpfIf> 对象
- */
-extern "C" std::unique_ptr<hebpf::ebpf::EbpfIf> create_service() {
-  return std::make_unique<hebpf::services::scheduler::SchedulerTc>();
-}

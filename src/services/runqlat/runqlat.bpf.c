@@ -2,6 +2,7 @@
 #include <vmlinux.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_tracing.h> // 提供 BPF_PROG 宏
+#include "src/ebpf/ebpf_chain.h"
 #include "src/services/klog/klog_helpers.bpf.h"
 #include "runqlat.bpf.h"
 #include "runqlat_comm.h"
@@ -12,7 +13,7 @@
 #define TASK_RUNNING 0
 
 // 任务被唤醒时记录时间戳
-SEC("raw_tp/sched_wakeup")
+SEC("?raw_tp/sched_wakeup")
 int BPF_PROG(hebpf_runqlat_sched_wakeup, struct task_struct *task) {
   pid_t pid = BPF_CORE_READ(task, pid);
 
@@ -20,28 +21,41 @@ int BPF_PROG(hebpf_runqlat_sched_wakeup, struct task_struct *task) {
   __u64 now = bpf_ktime_get_ns();
   bpf_map_update_elem(&hebpf_rq_cputime, &pid, &now, BPF_NOEXIST);
 
+#if defined(THIS_ID)
+  CHAIN_NEXT(ctx, Sched_Wakeup, 0);
+#endif
+
   return 0;
 }
 
 // 新任务首次被唤醒
-SEC("raw_tp/sched_wakeup_new")
+SEC("?raw_tp/sched_wakeup_new")
 int BPF_PROG(hebpf_runqlat_sched_wakeup_new, struct task_struct *task) {
   pid_t pid = BPF_CORE_READ(task, pid);
 
   __u64 now = bpf_ktime_get_ns();
   bpf_map_update_elem(&hebpf_rq_cputime, &pid, &now, BPF_NOEXIST);
 
+#if defined(THIS_ID)
+  CHAIN_NEXT(ctx, Sched_Wakeup_New, 0);
+#endif
+
   return 0;
 }
 
-// 获取进程的 TGID
+/**
+ * @brief 获取进程的 TGID
+ *
+ * @param task PCB
+ * @return __always_inline 进程 TGID
+ */
 static __always_inline pid_t get_tgid(struct task_struct *task) {
   struct task_struct *group_leader = BPF_CORE_READ(task, group_leader);
   return BPF_CORE_READ(group_leader, pid);
 }
 
 // 上下文切换时计算延迟
-SEC("raw_tp/sched_switch")
+SEC("?raw_tp/sched_switch")
 int BPF_PROG(hebpf_runqlat_sched_switch, bool preempt, struct task_struct *prev,
              struct task_struct *next) {
 
@@ -72,12 +86,13 @@ int BPF_PROG(hebpf_runqlat_sched_switch, bool preempt, struct task_struct *prev,
         eve->switch_ts = switch_ts;
         eve->latency_ns = latency;
 
+        eve->cgroup_id = bpf_get_current_cgroup_id();
         // 复制进程名称
         BPF_CORE_READ_STR_INTO(&eve->comm, next, comm);
         BPF_CORE_READ_STR_INTO(&eve->prev_comm, prev, comm);
 
-        KLOG(KLOG_LEVEL_DEBUG, "Runq(%u) submit event: %u -> %u", latency_threshold_ns,
-             eve->prev_pid, eve->pid);
+        KLOG(KLOG_LEVEL_TRACE, "Runq(%llu) submit event: %u -> %u, cgid=%llu", latency_threshold_ns,
+             eve->prev_pid, eve->pid, eve->cgroup_id);
         bpf_ringbuf_submit(eve, 0);
       }
     } // end if( latency )
@@ -92,6 +107,10 @@ int BPF_PROG(hebpf_runqlat_sched_switch, bool preempt, struct task_struct *prev,
   if (prev_state == TASK_RUNNING) {
     bpf_map_update_elem(&hebpf_rq_preempt, &prev_pid, &next_pid, BPF_ANY);
   }
+
+#if defined(THIS_ID)
+  CHAIN_NEXT(ctx, Sched_Switch, 0);
+#endif
 
   return 0;
 }

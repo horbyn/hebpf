@@ -3,6 +3,9 @@
 #include <fstream>
 #include <unordered_set>
 #include "src/common/exception.h"
+#include "src/services/scheduler/scheduler_sched_switch.h"
+#include "src/services/scheduler/scheduler_tc.h"
+#include "src/services/scheduler/scheduler_xdp.h"
 #include "nlohmann/json.hpp"
 #include "src/common/common.h"
 // clang-format on
@@ -135,7 +138,7 @@ bool EbpfManager::applyDiff(std::vector<daemon::Diff> &diff, daemon::HookMap &re
               if (daemon::ConfigEbpf::isScheduler(name)) {
                 load_filters.insert(hook_key.hook);
               }
-              LOG(error, "Failed to load service: {}", name);
+              LOG(error, "Failed to get running fd of service: {}", name);
               failed = true;
             }
           }
@@ -168,7 +171,7 @@ bool EbpfManager::applyDiff(std::vector<daemon::Diff> &diff, daemon::HookMap &re
       } // end switch-case()
     } // end lock
 
-    if (failed) {
+    if (failed || (elem.getType() == daemon::DiffType::ADD && rollback)) {
       if (result.find(hook_key) != result.end()) {
         auto &result_prog_list = result[hook_key];
         auto find_iter = std::find_if(
@@ -188,11 +191,8 @@ bool EbpfManager::applyDiff(std::vector<daemon::Diff> &diff, daemon::HookMap &re
 
   } // end for(diff)
 
-  if (!rollback) {
-    diff_ = diff; // 拷贝一份进行缓存
-  }
-
-  return failed;
+  diff_ = diff; // 拷贝一份进行缓存
+  return !failed;
 }
 
 /**
@@ -226,35 +226,64 @@ int EbpfManager::loadService(const ServiceKey &hook, const daemon::ConfigEbpfPtr
 
   int running_fd = FD_INVALID;
   try {
-    auto so_path = config->getLib();
-    std::unique_ptr<void, DlCloser> handle(dlopen(so_path.c_str(), RTLD_LAZY | RTLD_LOCAL));
-    if (handle == nullptr) {
-      LOG(error, "dlopen() failed: {}", dlerror());
-      return FD_INVALID;
-    }
+    auto conf_name = config->getName();
+    bool is_scheduler = daemon::ConfigEbpf::isScheduler(conf_name);
+    std::unique_ptr<void, DlCloser> handle{};
+    std::unique_ptr<hebpf::ebpf::EbpfIf> temp_instance{};
 
-    auto create_fn = reinterpret_cast<CreateServiceFn>(dlsym(handle.get(), SERVICE_CREATE.data()));
-    if (create_fn == nullptr) {
-      LOG(error, "Failed to get factory symbols from {}", so_path);
-      return FD_INVALID;
-    }
+    if (is_scheduler) {
+      using namespace services::scheduler;
+      switch (hook.hook.hook) {
+      case daemon::HookType::Sched_Switch:
+      case daemon::HookType::Sched_Wakeup:
+      case daemon::HookType::Sched_Wakeup_New:
+        temp_instance = std::make_unique<SchedulerSchedSwitch>();
+        break;
+      case daemon::HookType::TC:
+        temp_instance = std::make_unique<SchedulerTc>();
+        break;
+      case daemon::HookType::XDP_Generic:
+        temp_instance = std::make_unique<SchedulerXdp>();
+        break;
+      default:
+        LOG(error, "unknown hook type: {}", enumName(hook.hook.hook));
+        break;
+      } // end switch-case
+    } else {
+      auto so_path = config->getLib();
+      handle = std::unique_ptr<void, DlCloser>(dlopen(so_path.c_str(), RTLD_LAZY | RTLD_LOCAL));
+      if (handle == nullptr) {
+        LOG(error, "dlopen() failed: {}", dlerror());
+        return FD_INVALID;
+      }
 
-    auto temp_instance = create_fn();
+      auto create_fn =
+          reinterpret_cast<CreateServiceFn>(dlsym(handle.get(), SERVICE_CREATE.data()));
+      if (create_fn == nullptr) {
+        LOG(error, "Failed to get factory symbols from {}", so_path);
+        return FD_INVALID;
+      }
+
+      temp_instance = create_fn();
+    } // end if-else(scheduler)
+
     if (temp_instance == nullptr) {
-      LOG(error, "Exported function from {} returned nullptr", so_path);
-      return FD_INVALID;
-    }
-
-    if (!temp_instance->start(io_ctx_)) {
-      LOG(error, "Failed to start eBPF service: {}", so_path);
+      LOG(error, "Cannot get the eBPF object of configutation {}", conf_name);
       return FD_INVALID;
     }
 
     // TODO: 程序名称可以从动态库中获取，与配置名称区别开
     auto service_name = temp_instance->getName();
+
+    temp_instance->setHook(hook.hook.hook);
+    if (!temp_instance->start(io_ctx_)) {
+      LOG(error, "Failed to start eBPF service: {}", service_name);
+      return FD_INVALID;
+    }
+
     running_fd = temp_instance->getRunningFd(hook.hook.hook);
     if (services_->find(hook) != services_->end()) {
-      LOG(warn, "Service already loaded: {}", so_path);
+      LOG(warn, "Service already loaded: {}", service_name);
       return running_fd;
     }
 
@@ -265,7 +294,8 @@ int EbpfManager::loadService(const ServiceKey &hook, const daemon::ConfigEbpfPtr
           service_name);
       return running_fd;
     }
-    LOG(info, "Service \"{}\" loaded from {}", service_name, so_path);
+    LOG(info, "Service \"{}\" in {} loaded from {}", service_name, enumName(hook.hook.hook),
+        service_name);
   } catch (const except::Exception &exc) {
     LOG(error, "Failed to load eBPF service: {}", exc.what());
   }
@@ -287,7 +317,7 @@ bool EbpfManager::unloadService(const ServiceKey &hook) {
   try {
     auto iter = services_->find(hook);
     if (iter == services_->end()) {
-      LOG(error, "Cannot find the configuration \"{}\"", iter->second.config->getName());
+      LOG(error, "Cannot find the configuration \"{}\"", hook.name);
       return false;
     }
 
@@ -304,16 +334,10 @@ bool EbpfManager::unloadService(const ServiceKey &hook) {
       serv_name = serv.instance->getName();
       serv.instance->stop();
       serv.instance.reset();
-    } else {
-      LOG(error, "Configuration \"{}\" not started", conf_name);
-      return false;
     }
 
     if (serv.handle != nullptr) {
       serv.handle.reset();
-    } else {
-      LOG(error, "The symbol of service \"{}\" was undefined", serv_name);
-      return false;
     }
     services_->erase(iter);
 
@@ -491,9 +515,10 @@ void EbpfManager::onHashEvent(const event::EventIf &event) {
     }
   }
 
-  if (ret) {
+  if (!ret) {
     applyDiff(diff, map, true);
     bus->publish(event::EbpfFailureEvent{map_ptr});
+    return;
   }
 
   bus->publish(event::EbpfEvent{map_ptr, diff_ptr, services_});

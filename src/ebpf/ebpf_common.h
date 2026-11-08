@@ -9,6 +9,9 @@
 #define MAX_CHAIN_PROGS ((MAX_HOOK_TYPE) * (MAX_PER_HOOK_PROGS))
 #define PATH_BPFFS "/sys/fs/bpf/"
 
+#define MAX_CONFIG_ENTRIES 8 // 配置项数量
+#define CONFIG_IDX_KLOG 0    // 下标 0 日志等级
+
 /**
  * @brief 构造 idhash 的 key（64 位）
  * @param hook_type 绑定类型（枚举值）

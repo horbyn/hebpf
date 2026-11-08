@@ -69,21 +69,33 @@ void PinnedMapIf::releaseBpffs() {
   }
 }
 
-PinnedMapBase::~PinnedMapBase() { cleanup(); }
+PinnedMapBase::PinnedMapBase() : name_{}, res_{std::make_shared<Resource>()} {}
+
+PinnedMapBase::PinnedMapBase(const PinnedMapBase &other)
+    : initialized_{other.initialized_.load()}, name_{other.name_}, res_{other.res_} {}
+
+PinnedMapBase &PinnedMapBase::operator=(const PinnedMapBase &other) {
+  if (this != &other) {
+    initialized_.store(other.initialized_.load());
+    name_ = other.name_;
+    res_ = other.res_;
+  }
+  return *this;
+}
 
 /**
  * @brief 获取 pinned map 的 fd
  *
  * @return int 文件描述符，出错返回 FD_INVALID
  */
-int PinnedMapBase::getPinnedFd() const noexcept { return fd_; }
+int PinnedMapBase::getPinnedFd() const noexcept { return res_->fd_; }
 
 /**
  * @brief 获取 pinned map 的固定位置
  *
  * @return std::string 路径
  */
-std::string PinnedMapBase::getPinnedPath() const { return path_; }
+std::string PinnedMapBase::getPinnedPath() const { return res_->path_; }
 
 /**
  * @brief 创建指定 pinned map
@@ -118,31 +130,20 @@ bool PinnedMapBase::createPinnedInfo(std::string_view name, size_t map_size) {
   }
 
   name_ = map_name;
-  fd_ = fd;
-  path_ = pin_path;
+  res_->fd_ = fd;
+  res_->path_ = pin_path;
 
   LOG(info, "Initialized {} pinned map", map_name);
   return true;
 }
 
-/**
- * @brief 清理所有 pinned map
- *
- */
-void PinnedMapBase::cleanup() {
-  if (!initialized_.load()) {
-    return;
-  }
-
+PinnedMapBase::Resource::~Resource() {
   if (fd_ >= 0) {
     close(fd_);
   }
-  if (path_.empty() == false) {
-    if (unlink(path_.c_str()) != 0 && errno != ENOENT) {
-      LOG(warn, "Failed to unlink {}: {}", path_, strerror(errno));
-    }
+  if (!path_.empty()) {
+    unlink(path_.c_str());
   }
-  initialized_.store(false);
 }
 
 } // namespace ebpf

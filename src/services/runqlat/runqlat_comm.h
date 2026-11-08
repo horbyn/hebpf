@@ -17,6 +17,7 @@ struct rq_event {
   unsigned long long int wakeup_ts;  // 任务进入 run queue 的时间戳 (ns)
   unsigned long long int switch_ts;  // 任务获得 CPU 的时间戳 (ns)
   unsigned long long int latency_ns; // 进入 run queue 的等待时间（延迟） (ns)
+  unsigned long long int cgroup_id;  // 任务所属的 cgroup ID
   char comm[MAX_PROG_NAME];          // 进程名称
   char prev_comm[MAX_PROG_NAME];     // 被抢占进程名称
 };

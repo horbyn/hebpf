@@ -8,9 +8,6 @@ SCHEDULER_TC 5 TC
 SCHEDULER_XDP_Generic 6 XDP_Generic
 LB_TC 7 TC
 LB_XDP_Generic 8 XDP_Generic
-RUNQLAT_Sched_Switch 9 Sched_Switch
-SCHEDULER_Sched_Switch 10 Sched_Switch
-RUNQLAT_Sched_Wakeup 11 Sched_Wakeup
-SCHEDULER_Sched_Wakeup 12 Sched_Wakeup
-RUNQLAT_Sched_Wakeup_New 13 Sched_Wakeup_New
-SCHEDULER_Sched_Wakeup_New 14 Sched_Wakeup_New
+RUNQLAT_Sched 9 Sched_Switch,Sched_Wakeup,Sched_Wakeup_New
+SCHEDULER_Sched 10 Sched_Switch,Sched_Wakeup,Sched_Wakeup_New
+TOP_Sched_Switch 11 Sched_Switch

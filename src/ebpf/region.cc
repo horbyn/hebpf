@@ -40,29 +40,27 @@ bool Region::allocateRegion(const daemon::HookKey &hook_key) {
   }
 
   auto hook_type = hook_key.hook;
-  auto hook_id = hook_key.hook_id;
-  int next_start = MAX_CHAIN_PROGS;
+  int next_start = 0;
 
   if (regions_->empty()) {
     next_start = 0;
   } else {
+    next_start = (*regions_).begin()->second + MAX_PER_HOOK_PROGS;
     for (const auto &[_, index] : (*regions_)) {
-      if (next_start < index) {
-        next_start = index;
+      if (next_start <= index) {
+        next_start = index + MAX_PER_HOOK_PROGS;
       }
     }
-    next_start -= MAX_PER_HOOK_PROGS;
   }
 
   if (next_start + MAX_PER_HOOK_PROGS > MAX_CHAIN_PROGS) {
-    LOG(error, "No space in prog_array for hook {} id {}", enumName(hook_type), hook_id);
+    LOG(error, "No space in prog_array for hook {}", enumName(hook_type));
     return false;
   }
 
   (*regions_)[hook_key] = next_start;
 
-  LOG(debug, "Allocating region, base {} for hook {} id {}", next_start, enumName(hook_type),
-      hook_id);
+  LOG(debug, "Allocating region, base {} for hook {}", next_start, enumName(hook_type));
   return true;
 }
 
@@ -115,6 +113,7 @@ void Region::onConfigEvent(const event::EventIf &event) {
 
     bus->publish(
         event::RegionFailureEvent{map_ptr, diff_ptr}); // 失败的 kv 对返回配置管理器，更新后者的缓存
+    return;
   } // end if(fail)
 
   bus->publish(event::RegionEvent{map_ptr, regions_, diff_ptr});
@@ -139,10 +138,8 @@ void Region::onHashFailureEvent(const event::EventIf &event) {
     auto map_ptr = event.getMap();
     auto &map = *map_ptr;
     for (auto iter = regions_->begin(); iter != regions_->end();) {
-      auto iter_find = std::find_if(map.begin(), map.end(), [iter](const auto &map_iter) {
-        return iter->first == map_iter.first;
-      });
-      if (iter_find == map.end()) {
+      auto map_iter = map.find(iter->first);
+      if (map_iter != map.end()) {
         iter = regions_->erase(iter);
       } else {
         ++iter;

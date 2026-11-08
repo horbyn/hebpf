@@ -7,6 +7,16 @@
 namespace hebpf {
 namespace ebpf {
 
+PinnedHash::PinnedHash(const PinnedHash &other) : PinnedMapBase(other), cached_(other.cached_) {}
+
+PinnedHash &PinnedHash::operator=(const PinnedHash &other) {
+  if (this != &other) {
+    PinnedMapBase::operator=(other);
+    cached_ = other.cached_;
+  }
+  return *this;
+}
+
 /**
  * @brief 初始化公共 map，若已存在则打开，否则创建并 pin
  * @note 会创建多个 pinned map，只要有一个失败就全部失败
@@ -200,6 +210,23 @@ daemon::HookMap PinnedHash::getDiff(const daemon::HookMap &current_map) const {
   for (const auto &[hook_key, prog_list] : cached_) {
     if (current_map.find(hook_key) == current_map.end()) {
       diff.emplace(hook_key, prog_list);
+    } else {
+      const auto &current_prog_list = current_map.at(hook_key);
+      if (prog_list.size() != current_prog_list.size()) {
+        // 彼此数量不相等
+        diff.emplace(hook_key, prog_list);
+      } else {
+        // 彼此数量相等，逐个比较
+        for (const auto &prog : prog_list) {
+          if (std::find_if(current_prog_list.begin(), current_prog_list.end(),
+                           [&prog](const daemon::ConfigEbpfPtr &conf_ptr) {
+                             return conf_ptr->getName() == prog->getName();
+                           }) == current_prog_list.end()) {
+            diff.emplace(hook_key, prog_list);
+            break; // 有一个不相同就可以退出了，因为已经缓存了全部
+          }
+        }
+      }
     }
   } // end for()
 

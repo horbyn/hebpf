@@ -180,28 +180,27 @@ std::shared_ptr<HookMap> ConfigManager::translate(const Configs::EbpfMap &new_co
     conf->setProgId(iter->second.prog_id); // 设置 eBPF 程序 ID
     conf->setName(name);
 
-    const auto &hook = iter->second.hook;
-    auto hook_id = conf->getIfindex();
-    if (ConfigEbpf::isNetworkHook(hook)) {
-      if (hook_id <= 0) {
-        // 网络 hook 的 hook_id 表示 NIC 索引，必须大于 0
-        LOG(warn, "Invalid hook id {} for network hook", hook_id);
-        continue;
-      } // end if(hook_id)
-    } else {
-      hook_id = ID_NONNETWORK_HOOK; // 非网络 hook 总是重置为固定值
-    }
+    const auto &hooks = iter->second.hooks;
+    for (const auto &hook : hooks) {
+      auto hook_id = conf->getIfindex();
+      if (ConfigEbpf::isNetworkHook(hook)) {
+        if (hook_id <= 0) {
+          // 网络 hook 的 hook_id 表示 NIC 索引，必须大于 0
+          LOG(warn, "Invalid hook id {} for network hook", hook_id);
+          continue;
+        } // end if(hook_id)
+      } else {
+        conf->setIfindex(ID_NONNETWORK_HOOK); // 非网络 hook 总是重置为固定值
+      }
 
-    auto &prog_list = (*result)[HookKey{hook, hook_id}]; // 不存在就创建
-    prog_list.push_back(conf);
+      auto &prog_list = (*result)[HookKey{hook, conf->getIfindex()}]; // 不存在就创建
+      prog_list.push_back(conf);
+    } // end for(hooks)
 
   } // end for(检索配置)
 
   // 对每个 (hook, hook_id) 的列表按 order 排序
   for (auto &[_, vec] : *result) {
-    if (result->size() == 1) {
-      continue;
-    }
     std::sort(vec.begin(), vec.end(), [](const ConfigEbpfPtr &a, const ConfigEbpfPtr &b) {
       return a->getOrder() < b->getOrder();
     });
@@ -217,23 +216,6 @@ std::shared_ptr<HookMap> ConfigManager::translate(const Configs::EbpfMap &new_co
  * @return ConfigEbpfPtr 配置对象
  */
 ConfigEbpfPtr ConfigManager::makeSchedulerEbpf(HookKey hook_key) {
-  std::string so_path{};
-
-  // TODO: 将 scheduler 从独立的动态库修改为内部一个 target
-  switch (hook_key.hook) {
-  case HookType::TC:
-    so_path = std::string{SCHEDULER_TC_LIB};
-    break;
-  case HookType::Sched_Switch:
-    so_path = std::string{SCHEDULER_SCHED_SWITCH_LIB};
-    break;
-  case HookType::XDP_Generic:
-    so_path = std::string{SCHEDULER_XDP_LIB};
-    break;
-  default:
-    return nullptr;
-  }
-
   auto name = ConfigEbpf::getSchedulerName(hook_key.hook);
   const auto &defaults = ebpf::getDefaultProgMap();
   auto iter = defaults.find(name);
@@ -241,7 +223,7 @@ ConfigEbpfPtr ConfigManager::makeSchedulerEbpf(HookKey hook_key) {
     return nullptr;
   }
 
-  return std::make_shared<ConfigEbpf>(so_path, "", hook_key.hook_id, 0, iter->second.prog_id, name);
+  return std::make_shared<ConfigEbpf>("", "", hook_key.hook_id, 0, iter->second.prog_id, name);
 }
 
 } // namespace daemon

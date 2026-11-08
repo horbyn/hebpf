@@ -15,7 +15,8 @@ EbpfSkelIf<T>::EbpfSkelIf(std::unique_ptr<T> skel) : skel_{std::move(skel)} {}
 
 template <typename T>
 EbpfSkelIf<T>::EbpfSkelIf(EbpfSkelIf &&other) noexcept
-    : skel_{std::move(other.skel_)}, io_ctx_{std::move(other.io_ctx_)} {}
+    : skel_{std::move(other.skel_)}, io_ctx_{std::move(other.io_ctx_)},
+      type_{daemon::HookType::UNKNOWN} {}
 
 template <typename T>
 EbpfSkelIf<T> &EbpfSkelIf<T>::operator=(EbpfSkelIf &&other) noexcept {
@@ -39,6 +40,17 @@ void EbpfSkelIf<T>::open() {
   if (skel_ == nullptr) {
     skel_ = std::unique_ptr<T>(T::open(nullptr));
   }
+}
+
+/**
+ * @brief 设置绑定类型
+ * @note 仅针对一个源文件定义多个 hook 的 eBPF 程序
+ *
+ * @param type 绑定类型
+ */
+template <typename T>
+void EbpfSkelIf<T>::setHook(daemon::HookType type) {
+  type_ = type;
 }
 
 /**
@@ -91,6 +103,8 @@ void EbpfSkelIf<T>::destroy() {
 /**
  * @brief 启动 eBPF 程序
  *
+ * @note 普通 eBPF 程序只会加载而不会绑定
+ *
  * @param io_ctx io 模块
  * @note io 模块只有存在的时候，才会赋值
  *
@@ -112,7 +126,10 @@ bool EbpfSkelIf<T>::start(std::weak_ptr<io::IoIf> io_ctx) {
   }
 
   this->load();
-  this->attach();
+  if (daemon::ConfigEbpf::isScheduler(getName())) {
+    // 仅 scheduler 进行绑定
+    this->attach();
+  }
 
   return true;
 }

@@ -21,7 +21,3 @@ public:
 } // namespace scheduler
 } // namespace services
 } // namespace hebpf
-
-extern "C" {
-EXPORT std::unique_ptr<hebpf::ebpf::EbpfIf> create_service();
-}

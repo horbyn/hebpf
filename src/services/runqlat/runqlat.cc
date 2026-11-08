@@ -27,6 +27,7 @@ constexpr std::string_view JKEY_RUNQ_COMM{"comm"};
 constexpr std::string_view JKEY_RUNQ_PID{"pid"};
 constexpr std::string_view JKEY_RUNQ_PCOMM{"prev_comm"};
 constexpr std::string_view JKEY_RUNQ_PPID{"prev_pid"};
+constexpr std::string_view JKEY_RUNQ_CGROUP_ID{"cgroup_id"};
 
 // runqlat 标准桶：1us ~ 10s，覆盖 bpftrace runqlat.bt 的范围
 const std::vector<double> runqlat_latency_buckets = {
@@ -52,13 +53,25 @@ Runqlat::Runqlat(std::unique_ptr<runqlat_bpf> skel)
  *
  * @return std::string 程序名称
  */
-std::string Runqlat::getName() const { return std::string{RUNQLAT_Sched_Switch}; }
+std::string Runqlat::getName() const { return std::string{RUNQLAT_Sched}; }
 
 /**
  * @brief 加载 run queue 采集程序
  *
  */
 void Runqlat::load() {
+  switch (type_) {
+  case daemon::HookType::Sched_Switch:
+    bpf_program__set_autoload(skel_->progs.hebpf_runqlat_sched_switch, true);
+    break;
+  case daemon::HookType::Sched_Wakeup:
+    bpf_program__set_autoload(skel_->progs.hebpf_runqlat_sched_wakeup, true);
+    break;
+  default:
+    bpf_program__set_autoload(skel_->progs.hebpf_runqlat_sched_wakeup_new, true);
+    break;
+  }
+
   ebpf::EbpfSkelIf<runqlat_bpf>::load();
 
   auto fd = bpf_map__fd(skel_->maps.hebpf_rq_rb);
@@ -90,35 +103,6 @@ int Runqlat::getRunningFd(daemon::HookType hook_type) const {
 }
 
 /**
- * @brief 获取 run queue 内核态采集程序收集的状态信息对接 Debug 服务器
- *
- * @return nlohmann::json JSON 对象
- */
-nlohmann::json Runqlat::getDebugStatus() const {
-  std::vector<rq_event> copy{};
-  {
-    std::lock_guard<std::mutex> lock{mutex_};
-    copy.reserve(records_.size());
-    copy.assign(records_.begin(), records_.end());
-  }
-  nlohmann::json result = nlohmann::json::array();
-  for (const auto &record : copy) {
-    result.emplace_back(nlohmann::json{{JKEY_RUNQ_PID, record.pid},
-                                       {"tgid", record.tgid},
-                                       {JKEY_RUNQ_PPID, record.prev_pid},
-                                       {"prev_tgid", record.prev_tgid},
-                                       {"wakeup_beijing", formatBeijingTime(record.wakeup_ts)},
-                                       {"wakeup_mono", formatMonotonicSec(record.wakeup_ts)},
-                                       {"switch_beijing", formatBeijingTime(record.switch_ts)},
-                                       {"switch_mono", formatMonotonicSec(record.switch_ts)},
-                                       {"latency", formatLatencyNs(record.latency_ns)},
-                                       {JKEY_RUNQ_COMM, safeComm(record.comm)},
-                                       {JKEY_RUNQ_PCOMM, safeComm(record.prev_comm)}});
-  }
-  return result;
-}
-
-/**
  * @brief 获取 run queue 内核态数据对接 Prometheus
  *
  * @return nlohmann::json 内核数据对象
@@ -134,31 +118,25 @@ nlohmann::json Runqlat::getPrometheusStatus() {
   }
 
   for (const auto &record : records) {
-    const std::map<std::string, std::string> labels{
+    const KernelData::KernelDataMap labels{
         {std::string{JKEY_RUNQ_PID}, std::to_string(record.pid)},
         {std::string{JKEY_RUNQ_COMM}, safeComm(record.comm)},
         {std::string{JKEY_RUNQ_PPID}, std::to_string(record.prev_pid)},
         {std::string{JKEY_RUNQ_PCOMM}, safeComm(record.prev_comm)},
+        {std::string{JKEY_RUNQ_CGROUP_ID}, std::to_string(record.cgroup_id)},
     };
 
     // Histogram：延迟分布（单位：秒）
-    KernelData latency_hist{};
-    latency_hist.type_ = MetricType::HISTOGRAM;
-    latency_hist.name_ = "hebpf_runqlat_latency_seconds";
-    latency_hist.value_ = static_cast<double>(record.latency_ns) / 1e9;
-    latency_hist.labels_ = labels;
-    latency_hist.buckets_ = runqlat_latency_buckets;
+    KernelData latency_hist{MetricType::HISTOGRAM, "hebpf_runqlat_latency_seconds",
+                            static_cast<double>(record.latency_ns) / 1e9, labels,
+                            runqlat_latency_buckets};
 
     // Counter：事件总数
-    KernelData events_total;
-    events_total.type_ = MetricType::COUNTER;
-    events_total.name_ = "hebpf_runqlat_events_total";
-    events_total.value_ = 1.0;
-    events_total.labels_ = labels;
+    KernelData events_total{MetricType::COUNTER, "hebpf_runqlat_events_total", 1.0, labels};
 
     metrics.service_ = getName();
-    metrics.metrics_.push_back(nlohmann::json(latency_hist));
-    metrics.metrics_.push_back(nlohmann::json(events_total));
+    metrics.metrics_.push_back(latency_hist);
+    metrics.metrics_.push_back(events_total);
   }
 
   return metrics;
@@ -189,7 +167,7 @@ bool Runqlat::onConfigUpdate(const nlohmann::json &config) {
   __u32 key = INDEX0_LATENCY_THRESHOLD_NS;
   __u64 val = conf.getLatency();
   if (bpf_map_update_elem(map_fd, &key, &val, BPF_ANY) != 0) {
-    LOG(error, "Failed to update runqlat threshold: {}", ::strerror(errno));
+    LOG(error, "Failed to update runqlat threshold: {}", strerror(errno));
     return false;
   }
 
@@ -224,7 +202,7 @@ std::string Runqlat::formatLatencyNs(uint64_t ns) {
  * @return std::string_view 任务名称
  */
 std::string Runqlat::safeComm(const char (&comm)[MAX_PROG_NAME]) {
-  return std::string{comm, ::strnlen(comm, MAX_PROG_NAME)};
+  return std::string{comm, strnlen(comm, MAX_PROG_NAME)};
 }
 
 /**
@@ -263,9 +241,8 @@ void Runqlat::updateClockOffset() {
   struct timespec ts_rt{};
   struct timespec ts_mono{};
 
-  if (::clock_gettime(CLOCK_REALTIME, &ts_rt) != 0 ||
-      ::clock_gettime(CLOCK_MONOTONIC, &ts_mono) != 0) {
-    GLOBAL_LOG(error, "{}: clock_gettime failed: {}", getName(), ::strerror(errno));
+  if (clock_gettime(CLOCK_REALTIME, &ts_rt) != 0 || clock_gettime(CLOCK_MONOTONIC, &ts_mono) != 0) {
+    GLOBAL_LOG(error, "{}: clock_gettime failed: {}", getName(), strerror(errno));
     clock_offset_ns_ = 0;
     return;
   }

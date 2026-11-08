@@ -1,9 +1,10 @@
 #pragma once
 
 // clang-format off
-#include "klog.bpf.h"
 #include <vmlinux.h>
 #include <bpf/bpf_helpers.h>
+#include "src/ebpf/ebpf_chain.h"
+#include "klog.bpf.h"
 // clang-format on
 
 #ifdef __cplusplus
@@ -67,6 +68,10 @@ static __always_inline void bpf_log_event_internal(uint16_t level, const char *m
  */
 #define KLOG(level, fmt, ...)                                                                      \
   do {                                                                                             \
-    uint64_t _args[MAX_ARGS_CNT] = {__VA_ARGS__};                                                  \
-    bpf_log_event_internal(level, fmt, _args);                                                     \
+    __u32 _key = CONFIG_IDX_KLOG;                                                                  \
+    __u64 *_cfg = bpf_map_lookup_elem(&hebpf_config, &_key);                                       \
+    if (_cfg != NULL && (level >= (__u32) * _cfg) && (level < KLOG_LEVEL_OFF)) {                   \
+      uint64_t _args[MAX_ARGS_CNT] = {__VA_OPT__(__VA_ARGS__, ) 0};                                \
+      bpf_log_event_internal(level, fmt, _args);                                                   \
+    }                                                                                              \
   } while (0)

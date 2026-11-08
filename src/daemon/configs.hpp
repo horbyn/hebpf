@@ -56,14 +56,6 @@ constexpr std::string_view DEFAULT_LOKI_PATH{"loki/api/v1/push"};
 constexpr HookId ID_NONNETWORK_HOOK = 0;
 constexpr std::string_view ID_SCHEDULER_PREFIX{"SCHEDULER"};
 
-// TODO: Scheduler 动态库路径需要更灵活给出
-constexpr std::string_view SCHEDULER_XDP_LIB{
-    "build/src/services/scheduler/libhebpf_scheduler_xdp_generic.so"};
-constexpr std::string_view SCHEDULER_TC_LIB{
-    "build/src/services/scheduler/libhebpf_scheduler_tc.so"};
-constexpr std::string_view SCHEDULER_SCHED_SWITCH_LIB{
-    "build/src/services/scheduler/libhebpf_scheduler_sched_switch.so"};
-
 class ConfigEbpf {
 public:
   explicit ConfigEbpf();

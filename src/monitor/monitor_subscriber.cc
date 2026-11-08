@@ -136,18 +136,23 @@ void MonitorSubscriber::consumeLoop() noexcept {
         }
 
         KernelData event = elem;
-        switch (event.type_) {
+        auto serv_name = event.getName();
+        auto type = event.getType();
+        switch (type) {
         case MetricType::COUNTER:
-          mon->incrementCounter(event.name_, event.labels_, event.value_);
+          mon->incrementCounter(serv_name, event.getLabels(), event.getValue());
+          GLOBAL_LOG(debug, "Service {} commit {} metrics", serv_name, enumName(type));
           break;
         case MetricType::GAUGE:
-          mon->setGauge(event.name_, event.labels_, event.value_);
+          mon->setGauge(serv_name, event.getLabels(), event.getValue());
+          GLOBAL_LOG(debug, "Service {} commit {} metrics", serv_name, enumName(type));
           break;
         case MetricType::HISTOGRAM:
-          mon->observeHistogram(event.name_, event.labels_, event.value_, event.buckets_);
+          mon->observeHistogram(serv_name, event.getLabels(), event.getValue(), event.getBuckets());
+          GLOBAL_LOG(debug, "Service {} commit {} metrics", serv_name, enumName(type));
           break;
         default:
-          GLOBAL_LOG(warn, "Unknown metric type for metric '{}'", event.name_);
+          GLOBAL_LOG(warn, "Unknown metric type for metric '{}'", serv_name);
           break;
         }
       } // end for()

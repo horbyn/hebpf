@@ -1,6 +1,7 @@
 // clang-format off
 #include "stack_frame.h"
 #include <cxxabi.h>
+#include <array>
 #include <execinfo.h>
 #include <memory>
 #include <unistd.h>

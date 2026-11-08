@@ -54,7 +54,7 @@ function(generate_ebpf_ids)
 
     set(DEFINES "${DEFINES}#define EBPF_ID_${NAME} ${ID}\n")
     set(PROG_NAME_CONSTANTS "${PROG_NAME_CONSTANTS}constexpr std::string_view ${NAME}{\"${NAME}\"};\n")
-    set(PROG_MAP_ENTRIES "${PROG_MAP_ENTRIES}    { std::string{${NAME}}, { ${ID},  ${HOOK_LIST_STR} } },\n")
+    set(PROG_MAP_ENTRIES "${PROG_MAP_ENTRIES}    { std::string{${NAME}}, { ${ID},  std::vector<daemon::HookType>{ ${HOOK_LIST_STR} } } },\n")
   endforeach()
 
   list(REMOVE_DUPLICATES HOOK_TYPES)

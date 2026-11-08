@@ -13,6 +13,11 @@ namespace ebpf {
 
 class PinnedHash final : public PinnedMapBase {
 public:
+  explicit PinnedHash() = default;
+
+  PinnedHash(const PinnedHash &other);
+  PinnedHash &operator=(const PinnedHash &other);
+
   bool init() override;
   nlohmann::json getDebugStatus() override;
 

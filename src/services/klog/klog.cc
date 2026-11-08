@@ -55,16 +55,6 @@ void Klog::update(const daemon::Configs &config) {
 }
 
 /**
- * @brief 删除文件系统中的 pinned 文件
- *
- */
-void Klog::unpin() {
-  if (mgr_ != nullptr) {
-    mgr_->cleanup();
-  }
-}
-
-/**
  * @brief 内核日志回报
  *
  * @param data 内核日志

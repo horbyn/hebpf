@@ -66,10 +66,16 @@ macro(ebpf_compile source id_map_first_column)
   target_link_libraries(${OUTPUT_TARGET} INTERFACE ${LIBBPF_LIBRARIES} -lelf -lz)
   add_dependencies(${OUTPUT_TARGET} libbpf-build bpftool-build)
 
+  if("${id_map_first_column}" MATCHES "SCHEDULER")
+    set(LIB_TYPE STATIC) # scheduler 则需要将 eBPF 程序编译为静态库
+  else()
+    set(LIB_TYPE SHARED) # hebpf 项目的动态加载机制需要将 eBPF 程序编译为动态库
+  endif()
+
   string(TOLOWER "${id_map_first_column}" id_lower)
   set(LIB_NAME ${PROJECT_NAME}_${id_lower})
   add_library(${LIB_NAME}
-    SHARED # hebpf 项目的动态加载机制需要将 eBPF 程序编译为动态库
+    ${LIB_TYPE}
     ${source_file}.cc
   )
   set_target_properties(${LIB_NAME}
@@ -91,3 +97,4 @@ add_subdirectory(klog)
 add_subdirectory(lb)
 add_subdirectory(runqlat)
 add_subdirectory(scheduler)
+add_subdirectory(top)

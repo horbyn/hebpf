@@ -123,6 +123,11 @@ bool ConfigEbpf::operator!=(const ConfigEbpf &other) const { return !(*this == o
  * @return std::string 调度器名称
  */
 std::string ConfigEbpf::getSchedulerName(HookType hook_type) {
+  if (hook_type == HookType::Sched_Switch || hook_type == HookType::Sched_Wakeup ||
+      hook_type == HookType::Sched_Wakeup_New) {
+    // TODO: hard-code
+    return fmt::format("{}_Sched", ID_SCHEDULER_PREFIX);
+  }
   return fmt::format("{}_{}", ID_SCHEDULER_PREFIX, enumName(hook_type));
 }
 

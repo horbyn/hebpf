@@ -15,6 +15,7 @@
 #include "src/daemon/daemon.h"
 #include "src/data/queue.h"
 #include "src/debug_server/debug_server.h"
+#include "src/ebpf/config_map.h"
 #include "src/ebpf/ebpf_manager.h"
 #include "src/event/event_bus.h"
 #include "src/inotify/inotify_manager.h"
@@ -167,6 +168,13 @@ int main(int argc, char **argv) {
       http_debug->start(configs.getDebugServerAddr(), configs.getDebugServerPort());
     }
 
+    auto kconfig = ebpf::ConfigMap{ebpf::KCONFIG_MAP, MAX_CONFIG_ENTRIES};
+    if (!kconfig.init()) {
+      throw EXCEPT("Failed to initialize kernel config map");
+    }
+    // TODO: 日志等级转换不能直接强制转换
+    kconfig.setConfig(CONFIG_IDX_KLOG, static_cast<__u64>(configs.getLevel()));
+
     auto klog = std::make_shared<services::klog::Klog>(io_ctx);
     watcher->attach(klog);
 
@@ -189,7 +197,6 @@ int main(int argc, char **argv) {
     if (monitor != nullptr) {
       monitor->stop();
     }
-    klog->unpin();
 
     GLOBAL_LOG(info, "Shutting down");
   } catch (const hebpf::except::Exception &exc) {

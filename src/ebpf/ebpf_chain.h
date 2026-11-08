@@ -28,6 +28,14 @@ struct {
   __uint(pinning, LIBBPF_PIN_BY_NAME);
 } hebpf_idhash SEC(".maps");
 
+struct {
+  __uint(type, BPF_MAP_TYPE_ARRAY);
+  __uint(max_entries, MAX_CONFIG_ENTRIES);
+  __type(key, __u32);
+  __type(value, __u64);
+  __uint(pinning, LIBBPF_PIN_BY_NAME);
+} hebpf_config SEC(".maps");
+
 #define CHAIN_NEXT(ctx, hook, other_id)                                                            \
   do {                                                                                             \
     __u64 key = CHAIN_KEY(hook, other_id, THIS_ID);                                                \

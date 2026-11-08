@@ -24,6 +24,7 @@ public:
 
   virtual std::string getName() const = 0;
   virtual void open() = 0;
+  virtual void setHook(daemon::HookType type) = 0;
   virtual void load() = 0;
   virtual void attach() = 0;
   virtual void detach() = 0;
@@ -53,6 +54,7 @@ public:
 
 protected:
   void open() override;
+  void setHook(daemon::HookType type) override;
   void load() override;
   void attach() override;
   void detach() override;
@@ -66,6 +68,7 @@ protected:
 
   std::unique_ptr<T> skel_;
   std::weak_ptr<io::IoIf> io_ctx_;
+  daemon::HookType type_;
 };
 
 } // namespace ebpf

@@ -3,8 +3,8 @@ add_library(runqlat_conf
   ${sources}
 )
 
-ebpf_compile(runqlat.bpf.c RUNQLAT_Sched_Switch)
-target_link_libraries(${PROJECT_NAME}_runqlat_sched_switch
+ebpf_compile(runqlat.bpf.c RUNQLAT_Sched)
+target_link_libraries(${PROJECT_NAME}_runqlat_sched
   PRIVATE
   data
   runqlat_conf

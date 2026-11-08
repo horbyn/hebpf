@@ -22,7 +22,6 @@ public:
   std::string getName() const override;
   void load() override;
   int getRunningFd(daemon::HookType hook_type) const override;
-  nlohmann::json getDebugStatus() const override;
   nlohmann::json getPrometheusStatus() override;
   [[nodiscard]] bool onConfigUpdate(const nlohmann::json &config) override;
 

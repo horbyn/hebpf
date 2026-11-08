@@ -129,6 +129,7 @@ void PinnedMapManager::onRegionEvent(const event::EventIf &event) {
     daemon::Diff::filterByMap(hook_map_ptr, diff_ptr);
 
     bus->publish(event::HashFailureEvent{hook_map_ptr, diff_ptr});
+    return;
   } // end if(fail)
 
   bus->publish(event::HashEvent{std::move(hook_map_ptr), diff_ptr});
@@ -161,6 +162,7 @@ void PinnedMapManager::onEbpfEvent(const event::EventIf &event) {
     map->clear();
     diff->clear();
     bus->publish(event::ProgArrayFailureEvent{map, diff});
+    return;
   }
 
   auto hook_map_ptr = event_ptr->getMap();
@@ -169,6 +171,7 @@ void PinnedMapManager::onEbpfEvent(const event::EventIf &event) {
   if (!pinned_prog_array_->updateMap(hook_map, pinned_hash_.get(), event_ptr->getServiceMap())) {
     daemon::Diff::filterByMap(hook_map_ptr, diff_ptr);
     bus->publish(event::ProgArrayFailureEvent{hook_map_ptr, diff_ptr});
+    return;
   }
 
   bus->publish(event::CompleteEvent{hook_map_ptr});

@@ -1,0 +1,16 @@
+[Unit]
+Description=Home of eBPF
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=@INSTALL_DIR@/bin/hebpf \
+          -c @INSTALL_DIR@/conf/hebpf.yaml \
+          -l @INSTALL_DIR@/logs/hebpf.log
+Restart=on-failure
+RestartSec=5s
+# 限制最大文件描述符数量，防止高并发下 Too many open files
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target

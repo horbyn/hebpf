@@ -15,7 +15,27 @@ SchedulerSchedSwitch::SchedulerSchedSwitch(std::unique_ptr<scheduler_sched_switc
  *
  * @return std::string 程序名称
  */
-std::string SchedulerSchedSwitch::getName() const { return std::string{SCHEDULER_Sched_Switch}; }
+std::string SchedulerSchedSwitch::getName() const { return std::string{SCHEDULER_Sched}; }
+
+/**
+ * @brief 加载 scheduler eBPF 程序
+ *
+ * @note 加载失败会抛出异常
+ */
+void SchedulerSchedSwitch::load() {
+  switch (type_) {
+  case daemon::HookType::Sched_Switch:
+    bpf_program__set_autoload(skel_->progs.hebpf_scheduler_sched_switch, true);
+    break;
+  case daemon::HookType::Sched_Wakeup:
+    bpf_program__set_autoload(skel_->progs.hebpf_scheduler_sched_wakeup, true);
+    break;
+  default:
+    bpf_program__set_autoload(skel_->progs.hebpf_scheduler_sched_wakeup_new, true);
+    break;
+  }
+  ebpf::EbpfSkelIf<scheduler_sched_switch_bpf>::load();
+}
 
 /**
  * @brief 获取 Tracepoint 调度器 fd
@@ -40,12 +60,3 @@ int SchedulerSchedSwitch::getRunningFd(daemon::HookType hook_type) const {
 } // namespace scheduler
 } // namespace services
 } // namespace hebpf
-
-/**
- * @brief 动态库导出接口：用来返回 eBPF 对象
- *
- * @return std::unique_ptr<hebpf::ebpf::EbpfIf> 对象
- */
-extern "C" std::unique_ptr<hebpf::ebpf::EbpfIf> create_service() {
-  return std::make_unique<hebpf::services::scheduler::SchedulerSchedSwitch>();
-}

@@ -82,11 +82,9 @@ nlohmann::json ExampleUsermodeEbpf::getPrometheusStatus() {
   metrics.service_ = getName();
 
   if (count_ > 0) {
-    KernelData kernel_data{};
-    kernel_data.name_ = METRIC_NAME;
-    kernel_data.value_ = count_;
-    kernel_data.labels_.emplace(std::string{JKEY_METRICS_SERVICE}, getName());
-    metrics.metrics_.push_back(kernel_data);
+    KernelData::KernelDataMap labels{{std::string{JKEY_METRICS_SERVICE}, getName()}};
+    metrics.metrics_.push_back(
+        KernelData{MetricType::COUNTER, METRIC_NAME, static_cast<double>(count_), labels});
   }
   return metrics;
 }

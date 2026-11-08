@@ -27,8 +27,6 @@ public:
 
   void update(const daemon::Configs &config) override;
 
-  void unpin();
-
 private:
   int logEvent(void *data, size_t size);
 

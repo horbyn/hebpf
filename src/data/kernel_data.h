@@ -38,13 +38,26 @@ NLOHMANN_JSON_SERIALIZE_ENUM(MetricType, {
  */
 class KernelData final {
 public:
+  using KernelDataMap = std::map<std::string, std::string>;
+  explicit KernelData() = default;
+  explicit KernelData(MetricType type, const std::string &name, double value,
+                      const std::map<std::string, std::string> &labels,
+                      const std::vector<double> &buckets = {});
+
+  MetricType getType() const noexcept;
+  std::string getName() const;
+  double getValue() const noexcept;
+  KernelDataMap getLabels() const;
+  std::vector<double> getBuckets() const;
+
   friend void from_json(const nlohmann::json &json, KernelData &event);
   friend void to_json(nlohmann::json &json, const KernelData &event);
 
-  MetricType type_{MetricType::COUNTER};
+private:
+  MetricType type_;
   std::string name_;
-  double value_{0.0};
-  std::map<std::string, std::string> labels_;
+  double value_;
+  KernelDataMap labels_;
   std::vector<double> buckets_; // 仅 HISTOGRAM 使用
 };
 
