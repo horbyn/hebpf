@@ -6,8 +6,7 @@
 // clang-format on
 
 SEC("?raw_tp/sched_wakeup")
-int BPF_PROG(hebpf_scheduler_sched_wakeup, bool preempt, struct task_struct *prev,
-             struct task_struct *next) {
+int BPF_PROG(hebpf_scheduler_sched_wakeup, struct task_struct *task) {
 #ifdef THIS_ID
   CHAIN_NEXT(ctx, Sched_Wakeup, 0);
 #endif
@@ -15,8 +14,7 @@ int BPF_PROG(hebpf_scheduler_sched_wakeup, bool preempt, struct task_struct *pre
 }
 
 SEC("?raw_tp/sched_wakeup_new")
-int BPF_PROG(hebpf_scheduler_sched_wakeup_new, bool preempt, struct task_struct *prev,
-             struct task_struct *next) {
+int BPF_PROG(hebpf_scheduler_sched_wakeup_new, struct task_struct *task) {
 #ifdef THIS_ID
   CHAIN_NEXT(ctx, Sched_Wakeup_New, 0);
 #endif
@@ -25,7 +23,7 @@ int BPF_PROG(hebpf_scheduler_sched_wakeup_new, bool preempt, struct task_struct 
 
 SEC("?raw_tp/sched_switch")
 int BPF_PROG(hebpf_scheduler_sched_switch, bool preempt, struct task_struct *prev,
-             struct task_struct *next) {
+             struct task_struct *next, unsigned int prev_state) {
 #ifdef THIS_ID
   CHAIN_NEXT(ctx, Sched_Switch, 0);
 #endif

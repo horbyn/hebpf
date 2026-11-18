@@ -36,6 +36,7 @@ public:
   void start() override;
   void stop() override;
   bool full() const override;
+  std::vector<T> drain() override;
 
 private:
   struct Slot {

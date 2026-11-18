@@ -50,14 +50,13 @@ int BPF_PROG(hebpf_runqlat_sched_wakeup_new, struct task_struct *task) {
  * @return __always_inline 进程 TGID
  */
 static __always_inline pid_t get_tgid(struct task_struct *task) {
-  struct task_struct *group_leader = BPF_CORE_READ(task, group_leader);
-  return BPF_CORE_READ(group_leader, pid);
+  return BPF_CORE_READ(task, group_leader, pid);
 }
 
 // 上下文切换时计算延迟
 SEC("?raw_tp/sched_switch")
 int BPF_PROG(hebpf_runqlat_sched_switch, bool preempt, struct task_struct *prev,
-             struct task_struct *next) {
+             struct task_struct *next, unsigned int prev_state) {
 
   pid_t next_pid = BPF_CORE_READ(next, pid); // 即将上处理器
   pid_t prev_pid = BPF_CORE_READ(prev, pid); // 正在运行
@@ -91,7 +90,7 @@ int BPF_PROG(hebpf_runqlat_sched_switch, bool preempt, struct task_struct *prev,
         BPF_CORE_READ_STR_INTO(&eve->comm, next, comm);
         BPF_CORE_READ_STR_INTO(&eve->prev_comm, prev, comm);
 
-        KLOG(KLOG_LEVEL_TRACE, "Runq(%llu) submit event: %u -> %u, cgid=%llu", latency_threshold_ns,
+        KLOG(KLOG_LEVEL_TRACE, "Runq(%u) submit event: %u -> %u, cgid=%u", latency_threshold_ns,
              eve->prev_pid, eve->pid, eve->cgroup_id);
         bpf_ringbuf_submit(eve, 0);
       }
@@ -103,7 +102,6 @@ int BPF_PROG(hebpf_runqlat_sched_switch, bool preempt, struct task_struct *prev,
   } // end if( wakeup )
 
   // 如果 prev 任务被抢占（state == TASK_RUNNING），记录是谁抢占了它
-  __s64 prev_state = BPF_CORE_READ(prev, __state);
   if (prev_state == TASK_RUNNING) {
     bpf_map_update_elem(&hebpf_rq_preempt, &prev_pid, &next_pid, BPF_ANY);
   }

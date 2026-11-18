@@ -171,18 +171,16 @@ bool LockfreeQueue<T>::empty() const {
  *
  */
 template <typename T>
-bool LockfreeQueue<T>::full() const {
-  size_t eq = enqueue_pos_.load(std::memory_order_acquire);
-  size_t dq = dequeue_pos_.load(std::memory_order_acquire);
-  return (eq - dq) >= capacity_;
+void LockfreeQueue<T>::start() {
+  stopped_.store(false, std::memory_order_relaxed);
 }
 
 /**
  * @brief 停止队列
  */
 template <typename T>
-void LockfreeQueue<T>::start() {
-  stopped_.store(false, std::memory_order_relaxed);
+void LockfreeQueue<T>::stop() {
+  stopped_.store(true, std::memory_order_relaxed);
 }
 
 /**
@@ -192,8 +190,54 @@ void LockfreeQueue<T>::start() {
  * @return false 不是
  */
 template <typename T>
-void LockfreeQueue<T>::stop() {
-  stopped_.store(true, std::memory_order_relaxed);
+bool LockfreeQueue<T>::full() const {
+  size_t eq = enqueue_pos_.load(std::memory_order_acquire);
+  size_t dq = dequeue_pos_.load(std::memory_order_acquire);
+  return (eq - dq) >= capacity_;
+}
+
+/**
+ * @brief 批量取出所有数据，并清空队列
+ *
+ * @note 注意：在多消费者并发场景下，此方法会与其他消费者平分队列中的数据。
+ * @note 取出过程是非阻塞的，如果队列为空则立即返回
+ *
+ * @return std::vector<T> 包含所有提取出的元素
+ */
+template <typename T>
+std::vector<T> LockfreeQueue<T>::drain() {
+  std::vector<T> out{};
+  // 提前预留最大容量，避免 push_back 过程中的多次扩容
+  out.reserve(capacity_);
+
+  while (true) {
+    size_t pos = dequeue_pos_.load(std::memory_order_relaxed);
+    Slot &slot = buffer_[pos % capacity_];
+    size_t seq = slot.sequence.load(std::memory_order_acquire);
+
+    // 判断当前槽位是否可读
+    intptr_t diff = static_cast<intptr_t>(seq) - static_cast<intptr_t>(pos + 1);
+
+    if (diff == 0) {
+      // 槽位可读，尝试原子地抢占消费权
+      if (dequeue_pos_.compare_exchange_weak(pos, pos + 1, std::memory_order_relaxed)) {
+        // 抢到了，读取数据并移动出来
+        out.push_back(std::move(slot.data));
+        // 更新序列号（加上容量用于环形绕回），释放槽位给生产者
+        slot.sequence.store(pos + capacity_, std::memory_order_release);
+      }
+      // 如果 CAS 失败（说明被其他消费者线程抢走了），则不需要 break，
+      // 继续下一轮循环，读取新的 dequeue_pos_ 即可。
+    } else if (diff < 0) {
+      // 队列真的空了（生产者还没来得及写入下一个位置）
+      break;
+    } else {
+      // diff > 0（异常状态，理论上不应发生），退出以防死循环
+      break;
+    }
+  }
+
+  return out;
 }
 
 /**

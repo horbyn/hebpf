@@ -125,4 +125,28 @@ bool Queue<T>::full() const {
   return queue_.size() >= capacity_;
 }
 
+/**
+ * @brief 批量取出所有数据，并清空队列
+ *
+ * @return std::vector<T> 包含所有提取出的元素
+ */
+template <typename T>
+std::vector<T> Queue<T>::drain() {
+  std::vector<T> out{};
+  std::lock_guard<std::mutex> lock{mutex_};
+
+  if (queue_.empty()) {
+    return out;
+  }
+
+  out.reserve(queue_.size());
+
+  while (!queue_.empty()) {
+    out.push_back(std::move(queue_.front()));
+    queue_.pop();
+  }
+
+  return out;
+}
+
 } // namespace hebpf

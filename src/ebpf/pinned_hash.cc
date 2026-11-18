@@ -98,8 +98,8 @@ bool PinnedHash::updateMapElem(const daemon::HookKey &hook_key, int start_index,
       iter = progs.erase(iter); // 将失败的程序从中移除出去 TODO: 真的能移动出去吗? 这里是副本
       continue;
     }
-    LOG(debug, "Chain mapping: {{ prog_id:{}  hook_id:{}  hook_type:{} }} -> {{ index:{} }}",
-        prog_id, hook_key.hook_id, enumName(hook_key.hook), index);
+    LOG(debug, "Chain mapping: {{ prog_id:{}  hook_id:{}  hook_type:{}({}) }} -> {{ index:{} }}",
+        prog_id, hook_key.hook_id, enumName(hook_key.hook), static_cast<int>(hook_key.hook), index);
     ++index;
     ++iter;
 

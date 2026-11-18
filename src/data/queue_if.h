@@ -2,6 +2,7 @@
 
 // clang-format off
 #include <optional>
+#include <vector>
 #include "nlohmann/json.hpp"
 // clang-format on
 
@@ -22,6 +23,7 @@ public:
   virtual void start() = 0;
   virtual void stop() = 0;
   virtual bool full() const = 0;
+  virtual std::vector<T> drain() = 0;
 };
 
 using QueueDaemonMonitor = QueueIf<nlohmann::json>;

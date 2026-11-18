@@ -48,7 +48,7 @@ struct {
 
 SEC("raw_tp/sched_switch")
 int BPF_PROG(hebpf_top_sched_switch, bool preempt, struct task_struct *prev,
-             struct task_struct *next) {
+             struct task_struct *next, unsigned int prev_state) {
   __u64 now = bpf_ktime_get_ns();
   __u32 index_cputm = INDEX_CPU_USAGE;
   __u32 index_cpulast = INDEX_CPU_LAST;

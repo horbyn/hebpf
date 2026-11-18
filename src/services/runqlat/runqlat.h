@@ -1,8 +1,8 @@
 #pragma once
 
 // clang-format off
-#include <deque>
-#include <mutex>
+#include <memory>
+#include "src/data/queue_if.h"
 #include "src/ebpf/ebpf_if.h"
 #include "src/ebpf/ringbuffer_if.h"
 #include "src/services/runqlat/runqlat.skel.h"
@@ -13,11 +13,10 @@ namespace hebpf {
 namespace services {
 namespace runqlat {
 
-constexpr uint64_t MAX_CAPACITY{10240};
-
 class Runqlat : public ebpf::EbpfSkelIf<runqlat_bpf> {
 public:
   explicit Runqlat(std::unique_ptr<runqlat_bpf> skel = {});
+  ~Runqlat();
 
   std::string getName() const override;
   void load() override;
@@ -36,8 +35,7 @@ private:
 
   std::unique_ptr<ebpf::RingbufferIf> ringbuff_;
   uint64_t clock_offset_ns_;
-  mutable std::mutex mutex_;
-  std::deque<rq_event> records_;
+  std::unique_ptr<QueueIf<rq_event>> records_;
 };
 
 } // namespace runqlat

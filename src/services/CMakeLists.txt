@@ -37,14 +37,14 @@ macro(ebpf_compile source id_map_first_column)
   add_custom_command(
     OUTPUT ${BPF_O_FILE}
     COMMAND ${BPFOBJECT_CLANG_EXE} -g -O2 -target bpf -D__TARGET_ARCH_${ARCH}
-            ${CLANG_SYSTEM_INCLUDES} -I${GENERATED_VMLINUX_DIR}
+            ${CLANG_SYSTEM_INCLUDES} -isystem ${GENERATED_VMLINUX_DIR}
             -I${CMAKE_SOURCE_DIR} -I${CMAKE_BINARY_DIR}
             -I${CMAKE_CURRENT_SOURCE_DIR}
             -isystem ${LIBBPF_INCLUDE_DIRS}
             -c ${TEMP_SOURCE} -o ${BPF_O_FILE}
     COMMAND_EXPAND_LISTS
     VERBATIM
-    DEPENDS ${TEMP_SOURCE} ${GENERATED_VMLINUX_H}
+    DEPENDS ${TEMP_SOURCE} generate_vmlinux
     COMMENT "Compiling eBPF object ${source_file}"
   )
   add_custom_target(${source_file}_bpf ALL DEPENDS ${BPF_O_FILE})
@@ -64,7 +64,7 @@ macro(ebpf_compile source id_map_first_column)
   target_include_directories(${OUTPUT_TARGET} INTERFACE ${CMAKE_CURRENT_BINARY_DIR})
   target_include_directories(${OUTPUT_TARGET} SYSTEM INTERFACE ${LIBBPF_INCLUDE_DIRS})
   target_link_libraries(${OUTPUT_TARGET} INTERFACE ${LIBBPF_LIBRARIES} -lelf -lz)
-  add_dependencies(${OUTPUT_TARGET} libbpf-build bpftool-build)
+  add_dependencies(${OUTPUT_TARGET} ${BPF_SKEL_FILE})
 
   if("${id_map_first_column}" MATCHES "SCHEDULER")
     set(LIB_TYPE STATIC) # scheduler 则需要将 eBPF 程序编译为静态库
@@ -91,8 +91,22 @@ macro(ebpf_compile source id_map_first_column)
   )
 endmacro()
 
+# Generate vmlinux.h
+set(GENERATED_VMLINUX_DIR ${CMAKE_BINARY_DIR}/vmlinux)
+set(BPFOBJECT_VMLINUX_H ${GENERATED_VMLINUX_DIR}/vmlinux.h)
+add_custom_command(OUTPUT ${BPFOBJECT_VMLINUX_H}
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${GENERATED_VMLINUX_DIR}
+  COMMAND ${BPFOBJECT_BPFTOOL_EXE} btf dump file /sys/kernel/btf/vmlinux format c > ${BPFOBJECT_VMLINUX_H}
+  DEPENDS ${BPFOBJECT_BPFTOOL_EXE}
+  VERBATIM
+  DEPENDS bpftool-build
+  COMMENT "[vmlinux] Generating header: ${BPFOBJECT_VMLINUX_H}"
+)
+add_custom_target(generate_vmlinux DEPENDS ${BPFOBJECT_VMLINUX_H})
+
 add_subdirectory(acl)
 add_subdirectory(examples)
+add_subdirectory(iotrace)
 add_subdirectory(klog)
 add_subdirectory(lb)
 add_subdirectory(runqlat)

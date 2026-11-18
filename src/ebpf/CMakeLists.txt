@@ -10,4 +10,5 @@ target_link_libraries(ebpf
   ${PROJECT_NAME}_scheduler_tc
   ${PROJECT_NAME}_scheduler_xdp_generic
   ${PROJECT_NAME}_scheduler_sched
+  ${PROJECT_NAME}_scheduler_block
 )

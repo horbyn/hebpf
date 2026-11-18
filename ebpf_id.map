@@ -11,3 +11,5 @@ LB_XDP_Generic 8 XDP_Generic
 RUNQLAT_Sched 9 Sched_Switch,Sched_Wakeup,Sched_Wakeup_New
 SCHEDULER_Sched 10 Sched_Switch,Sched_Wakeup,Sched_Wakeup_New
 TOP_Sched_Switch 11 Sched_Switch
+IOTRACE_Block 12 Block_Bio_Queue,Block_Io_Start,Block_Rq_Issue,Block_Rq_Complete
+SCHEDULER_Block 13 Block_Bio_Queue,Block_Io_Start,Block_Rq_Issue,Block_Rq_Complete

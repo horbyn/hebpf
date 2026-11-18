@@ -13,6 +13,7 @@
 #include "src/common/exception.h"
 #include "src/data/kernel_data.h"
 #include "src/data/metrics.h"
+#include "src/data/queue.h"
 #include "src/ebpf/ringbuffer.h"
 #include "src/fd/fd.h"
 #include "generated/ebpf_prog_map.h"
@@ -20,6 +21,9 @@
 // clang-format on
 
 namespace {
+
+// TODO: 暂定缓存大小
+constexpr uint64_t MAX_CAPACITY{10240};
 
 constexpr uint64_t ns_per_sec = 1'000'000'000ULL;
 constexpr uint64_t beijing_offset_ns = 8ULL * 3600ULL * ns_per_sec; // UTC+8
@@ -46,6 +50,14 @@ namespace runqlat {
 Runqlat::Runqlat(std::unique_ptr<runqlat_bpf> skel)
     : ebpf::EbpfSkelIf<runqlat_bpf>{std::move(skel)} {
   updateClockOffset();
+  records_ = std::make_unique<Queue<rq_event>>(MAX_CAPACITY);
+  records_->start();
+}
+
+Runqlat::~Runqlat() {
+  if (records_ != nullptr) {
+    records_->stop();
+  }
 }
 
 /**
@@ -109,13 +121,7 @@ int Runqlat::getRunningFd(daemon::HookType hook_type) const {
  */
 nlohmann::json Runqlat::getPrometheusStatus() {
   Metrics metrics{};
-  std::vector<rq_event> records{};
-  {
-    std::lock_guard<std::mutex> lock{mutex_};
-    records.reserve(records_.size());
-    records.assign(records_.begin(), records_.end());
-    records_.clear();
-  }
+  std::vector<rq_event> records = records_->drain();
 
   for (const auto &record : records) {
     const KernelData::KernelDataMap labels{
@@ -212,22 +218,14 @@ std::string Runqlat::safeComm(const char (&comm)[MAX_PROG_NAME]) {
  * @param data_sz 内核数据长度
  * @return int 成功返回 0，失败返回 -1
  */
-int Runqlat::onEvent([[maybe_unused]] void *data, [[maybe_unused]] size_t data_sz) {
+int Runqlat::onEvent([[maybe_unused]] void *data, size_t data_sz) {
   if (data_sz != sizeof(struct rq_event)) {
     GLOBAL_LOG(error, "{} eBPF cb: invalid event size: {}", getName(), data_sz);
     return -1;
   }
 
   auto *eve = static_cast<struct rq_event *>(data);
-
-  {
-    std::lock_guard<std::mutex> lock{mutex_};
-    if (records_.size() >= MAX_CAPACITY) {
-      // TODO: 目前暂时 hard-code 规则数量为 MAX_CAPACITY
-      records_.pop_front();
-    }
-    records_.push_back(*eve);
-  }
+  records_->push(*eve);
 
   return 0;
 }

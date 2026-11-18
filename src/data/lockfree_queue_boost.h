@@ -29,6 +29,7 @@ public:
   void start() override;
   void stop() override;
   bool full() const override;
+  std::vector<T> drain() override;
 
 private:
   boost::lockfree::queue<T> queue_;

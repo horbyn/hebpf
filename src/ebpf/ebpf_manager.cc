@@ -4,6 +4,7 @@
 #include <unordered_set>
 #include "src/common/exception.h"
 #include "src/services/scheduler/scheduler_sched_switch.h"
+#include "src/services/scheduler/scheduler_block.h"
 #include "src/services/scheduler/scheduler_tc.h"
 #include "src/services/scheduler/scheduler_xdp.h"
 #include "nlohmann/json.hpp"
@@ -242,6 +243,12 @@ int EbpfManager::loadService(const ServiceKey &hook, const daemon::ConfigEbpfPtr
       case daemon::HookType::TC:
         temp_instance = std::make_unique<SchedulerTc>();
         break;
+      case daemon::HookType::Block_Bio_Queue:
+      case daemon::HookType::Block_Io_Start:
+      case daemon::HookType::Block_Rq_Complete:
+      case daemon::HookType::Block_Rq_Issue:
+        temp_instance = std::make_unique<SchedulerBlock>();
+        break;
       case daemon::HookType::XDP_Generic:
         temp_instance = std::make_unique<SchedulerXdp>();
         break;
@@ -294,8 +301,7 @@ int EbpfManager::loadService(const ServiceKey &hook, const daemon::ConfigEbpfPtr
           service_name);
       return running_fd;
     }
-    LOG(info, "Service \"{}\" in {} loaded from {}", service_name, enumName(hook.hook.hook),
-        service_name);
+    LOG(info, "Service \"{}\" in {} loaded", service_name, enumName(hook.hook.hook));
   } catch (const except::Exception &exc) {
     LOG(error, "Failed to load eBPF service: {}", exc.what());
   }

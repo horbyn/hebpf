@@ -15,6 +15,7 @@ set(EXPORT_TEST_TARGET run_coverage)
 set(EXPORT_BENCHMARK_TARGET run_benchmark)
 set(DEPS_DIR ${CMAKE_SOURCE_DIR}/deps)
 set(DEPS_BUILD_DIR ${CMAKE_BINARY_DIR}/deps)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # 生成 compile_commands.json
 if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64")
   set(ARCH "x86")
 elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
@@ -55,7 +56,8 @@ set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
 FetchContent_Declare(
   libbpf-bootstrap
   GIT_REPOSITORY https://github.com/libbpf/libbpf-bootstrap.git
-  GIT_TAG b2b9960d32eb0e99af8e90ceae4b46b96093acb1
+  # commits on Oct 23, 2026
+  GIT_TAG 820a1bd8b4f4cb4b78b442ae4eb3994738651f12
   SOURCE_DIR   "${DEPS_DIR}/libbpf-bootstrap_src"
   SUBBUILD_DIR "${DEPS_DIR}/libbpf-bootstrap_subbuild"
 )
@@ -102,7 +104,6 @@ ExternalProject_Add(bpftool
 )
 
 set(BPFOBJECT_BPFTOOL_EXE ${CMAKE_BINARY_DIR}/bpftool/bootstrap/bpftool)
-set(BPFOBJECT_VMLINUX_H ${LIBBPF_BOOTSTRAP_PATH}/vmlinux.h/include/${ARCH}/vmlinux.h)
 set(LIBBPF_INCLUDE_DIRS ${CMAKE_BINARY_DIR}/libbpf)
 set(LIBBPF_LIBRARIES ${CMAKE_BINARY_DIR}/libbpf/libbpf.a)
 

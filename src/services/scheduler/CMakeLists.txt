@@ -11,3 +11,5 @@ target_link_libraries(${PROJECT_NAME}_scheduler_xdp_generic
 )
 
 ebpf_compile(scheduler_sched_switch.bpf.c SCHEDULER_Sched)
+
+ebpf_compile(scheduler_block.bpf.c SCHEDULER_Block)

@@ -127,6 +127,10 @@ std::string ConfigEbpf::getSchedulerName(HookType hook_type) {
       hook_type == HookType::Sched_Wakeup_New) {
     // TODO: hard-code
     return fmt::format("{}_Sched", ID_SCHEDULER_PREFIX);
+  } else if (hook_type == HookType::Block_Bio_Queue || hook_type == HookType::Block_Io_Start ||
+             hook_type == HookType::Block_Rq_Complete || hook_type == HookType::Block_Rq_Issue) {
+    // TODO: hard-code
+    return fmt::format("{}_Block", ID_SCHEDULER_PREFIX);
   }
   return fmt::format("{}_{}", ID_SCHEDULER_PREFIX, enumName(hook_type));
 }
